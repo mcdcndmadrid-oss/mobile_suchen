@@ -254,25 +254,34 @@
 
   <section class="panel" id="addPanel" hidden>
     <p class="eyebrow">Añadir anuncio</p>
-    <p class="hint">Pega aquí el contenido capturado del anuncio: el JSON del bookmarklet <em>(recomendado)</em> o el código fuente completo de la página (Ctrl+U en el anuncio → Ctrl+A → Ctrl+C).</p>
-    <textarea id="pasteBox" placeholder='{"mobileAd": ... }  —  o el HTML completo de la página del anuncio'></textarea>
-    <div class="row-actions">
-      <button id="btnParse" class="primary">Extraer y añadir</button>
-      <button id="btnSample">Cargar ejemplo (BMW 318i)</button>
-      <span id="addMsg" class="msg" role="status"></span>
-    </div>
-    <details class="help">
-      <summary>Cómo capturar con un clic (bookmarklet)</summary>
+    <p class="hint"><strong>Método recomendado:</strong> instala una vez el bookmarklet automático. Después, desde cualquier anuncio individual de mobile.de, pulsa el marcador y el coche se añadirá directamente a este comparador.</p>
+    <details class="help" open>
+      <summary>Añadir automáticamente con un clic</summary>
       <ol>
-        <li>Crea un marcador nuevo en tu navegador y pega este código como URL:</li>
+        <li>Crea un marcador nuevo en tu navegador.</li>
+        <li>Copia el código inferior y pégalo completo en el campo <strong>URL</strong> del marcador.</li>
       </ol>
       <code class="mono" id="bmCode"></code>
-      <div class="row-actions"><button id="btnCopyBm">Copiar bookmarklet</button></div>
-      <ol start="2">
-        <li>Abre el anuncio en mobile.de y haz clic en el marcador.</li>
-        <li>Vuelve aquí y pega (Ctrl+V) en el cuadro de arriba.</li>
+      <div class="row-actions"><button id="btnCopyBm" class="primary">Copiar bookmarklet automático</button></div>
+      <ol start="3">
+        <li>Abre un anuncio individual en mobile.de y pulsa el marcador.</li>
+        <li>El comparador se abrirá o pasará al frente y añadirá el anuncio automáticamente.</li>
       </ol>
+      <p class="hint">Si el navegador bloquea la ventana o la comunicación, el bookmarklet copiará los datos como respaldo para que puedas pegarlos abajo.</p>
     </details>
+
+    <details class="help">
+      <summary>Método manual de respaldo</summary>
+      <p class="hint">Pega el JSON copiado por el bookmarklet o el código fuente completo de la página (Ctrl+U → Ctrl+A → Ctrl+C).</p>
+      <textarea id="pasteBox" placeholder='{"mobileAd": ... }  —  o el HTML completo de la página del anuncio'></textarea>
+      <div class="row-actions">
+        <button id="btnParse" class="primary">Extraer y añadir</button>
+        <button id="btnSample">Cargar ejemplo (BMW 318i)</button>
+      </div>
+    </details>
+    <div class="row-actions">
+      <span id="addMsg" class="msg" role="status"></span>
+    </div>
   </section>
 
   <section class="panel" id="prefsPanel" hidden>
@@ -918,7 +927,7 @@ function renderTable() {
   const area = document.getElementById('tableArea');
   if (!state.ads.length) {
     area.innerHTML = '<div class="empty"><strong>Aún no hay anuncios.</strong>' +
-      '<p>Añade el primero pegando el JSON del bookmarklet o el código fuente de la página del anuncio, o carga el ejemplo para ver cómo funciona.</p>' +
+      '<p>Añade el primero desde mobile.de con el bookmarklet automático, usa el método manual de respaldo o carga el ejemplo para ver cómo funciona.</p>' +
       '<button class="primary" onclick="openAdd()">+ Añadir anuncio</button></div>';
     return;
   }
@@ -1149,7 +1158,7 @@ const SAMPLE_AD = {
   "capturedAt": "2026-07-13"
 };
 
-const BOOKMARKLET = "javascript:(()=>{const cp=t=>navigator.clipboard.writeText(t).then(()=>alert('Anuncio copiado. P\\u00e9galo en el comparador.')).catch(()=>prompt('Copia este texto:',t));const im=document.querySelector('img[src*=\"classistatic\"]');const imageUrl=im?im.src.split('?')[0]+'?rule=mo-240':undefined;const s=window.__INITIAL_STATE__;const a=s&&s.search&&s.search.vip&&s.search.vip.ads;if(a&&Object.keys(a).length){const k=Object.keys(a)[0];cp(JSON.stringify({mobileAd:a[k],capturedUrl:location.href,imageUrl}));return}const sc=[...document.querySelectorAll('script')].map(x=>x.textContent||'').filter(x=>x.includes('__next_f.push'));if(sc.length){cp(JSON.stringify({nextFlightHtml:sc.join('\\n'),capturedUrl:location.href,imageUrl}));return}alert('Abre un anuncio de mobile.de y vuelve a pulsar')})();";
+const BOOKMARKLET = "javascript:(()=>{const APP='https://mcdcndmadrid-oss.github.io/mobile_suchen/';const APP_ORIGIN='https://mcdcndmadrid-oss.github.io';const fallback=p=>{const t=JSON.stringify(p);navigator.clipboard.writeText(t).then(()=>alert('No se pudo confirmar el envío. Los datos se han copiado; pégalos en el comparador.')).catch(()=>prompt('Copia estos datos y pégalos en el comparador:',t))};const im=document.querySelector('img[src*=\"classistatic\"]');const imageUrl=im?im.src.split('?')[0]+'?rule=mo-240':undefined;let payload=null;const s=window.__INITIAL_STATE__;const a=s&&s.search&&s.search.vip&&s.search.vip.ads;if(a&&Object.keys(a).length){const k=Object.keys(a)[0];payload={mobileAd:a[k],capturedUrl:location.href,imageUrl}}else{const sc=[...document.querySelectorAll('script')].map(x=>x.textContent||'').filter(x=>x.includes('__next_f.push'));if(sc.length)payload={nextFlightHtml:sc.join('\\n'),capturedUrl:location.href,imageUrl}}if(!payload){alert('No se encontraron datos del anuncio. Abre un anuncio individual de mobile.de y vuelve a pulsar.');return}const target=window.open(APP,'mobileComparador');if(!target){fallback(payload);return}let attempts=0;let finished=false;const stop=()=>{finished=true;clearInterval(timer);window.removeEventListener('message',onMessage)};function onMessage(ev){if(ev.origin!==APP_ORIGIN||!ev.data||ev.data.type!=='MOBILE_AD_IMPORT_ACK')return;if(ev.data.ok){stop();try{target.focus()}catch(e){}alert('Anuncio añadido al comparador.')}else{stop();alert('El comparador no pudo importar el anuncio: '+(ev.data.error||'error desconocido'));fallback(payload)}}window.addEventListener('message',onMessage);const send=()=>{if(finished)return;attempts++;try{target.postMessage({type:'MOBILE_AD_IMPORT',payload},APP_ORIGIN);target.focus()}catch(e){}if(attempts>=30){stop();fallback(payload)}};const timer=setInterval(send,500);send()})();";
 
 /* ---------- wiring ---------- */
 document.getElementById('btnAdd').addEventListener('click', () => {
@@ -1221,6 +1230,74 @@ document.getElementById('fileImport').addEventListener('change', ev => {
 });
 
 document.getElementById('bmCode').textContent = BOOKMARKLET;
+
+/* ---------- automatic import from the mobile.de bookmarklet ---------- */
+function isAllowedMobileOrigin(origin) {
+  try {
+    const u = new URL(origin);
+    return u.protocol === 'https:' &&
+      (u.hostname === 'mobile.de' || u.hostname.endsWith('.mobile.de'));
+  } catch (e) {
+    return false;
+  }
+}
+
+function importBookmarkletPayload(payload) {
+  const rec = parseInput(JSON.stringify(payload));
+  const existing = state.ads.findIndex(a => String(a.id) === String(rec.id));
+
+  if (existing >= 0) state.ads[existing] = rec;
+  else state.ads.push(rec);
+
+  save();
+  render();
+
+  const panel = document.getElementById('addPanel');
+  const msg = document.getElementById('addMsg');
+  panel.hidden = false;
+  msg.textContent = existing >= 0
+    ? 'Anuncio actualizado automáticamente: ' + shortName(rec)
+    : 'Anuncio añadido automáticamente: ' + shortName(rec);
+  msg.className = 'msg ok';
+
+  return rec;
+}
+
+window.addEventListener('message', event => {
+  if (!isAllowedMobileOrigin(event.origin)) return;
+
+  const data = event.data;
+  if (!data || data.type !== 'MOBILE_AD_IMPORT' || !data.payload) return;
+
+  // El bookmarklet reintenta mientras la aplicación termina de inicializarse.
+  if (!state) return;
+
+  try {
+    const rec = importBookmarkletPayload(data.payload);
+    if (event.source) {
+      event.source.postMessage({
+        type: 'MOBILE_AD_IMPORT_ACK',
+        ok: true,
+        id: rec.id,
+        title: rec.title
+      }, event.origin);
+    }
+  } catch (e) {
+    const msg = document.getElementById('addMsg');
+    document.getElementById('addPanel').hidden = false;
+    msg.textContent = 'No se pudo importar automáticamente: ' + e.message;
+    msg.className = 'msg err';
+
+    if (event.source) {
+      event.source.postMessage({
+        type: 'MOBILE_AD_IMPORT_ACK',
+        ok: false,
+        error: e.message
+      }, event.origin);
+    }
+  }
+});
+
 
 // Catálogo compartido: GitHub Pages solo sirve archivos estáticos, así que la forma
 // de que todo el mundo vea los mismos coches es publicar un cars.json en el repo.
