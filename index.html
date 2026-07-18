@@ -156,14 +156,6 @@
   .wishlist-input { width: 100%; padding: 7px 8px; font: 13px "Segoe UI", system-ui, sans-serif;
     background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); border-radius: 5px; }
 
-  .url-input {
-    flex: 1; min-width: 280px; padding: 9px 10px;
-    font: 13px "Segoe UI", system-ui, sans-serif;
-    background: var(--surface-2); color: var(--ink);
-    border: 1px solid var(--line); border-radius: 6px;
-  }
-  button:disabled { opacity: .62; cursor: wait; }
-
   .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 7px 12px; }
   .check-grid label { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
   .check-grid input { accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
@@ -262,12 +254,7 @@
 
   <section class="panel" id="addPanel" hidden>
     <p class="eyebrow">Añadir anuncio</p>
-    <p class="hint">Pega la URL del anuncio para importarlo automáticamente. Como alternativa, puedes seguir pegando el JSON del bookmarklet o el código fuente completo.</p>
-    <div class="row-actions">
-      <input id="adUrl" class="url-input" type="url" inputmode="url" autocomplete="off"
-        placeholder="https://www.mobile.de/auto-inserat/..."><button id="btnLoadUrl" class="primary">Añadir desde URL</button>
-    </div>
-    <p class="hint">La importación por URL necesita que configures <code>PROXY_URL</code> en este archivo con la dirección de tu función de Vercel.</p>
+    <p class="hint">Pega aquí el contenido capturado del anuncio: el JSON del bookmarklet <em>(recomendado)</em> o el código fuente completo de la página (Ctrl+U en el anuncio → Ctrl+A → Ctrl+C).</p>
     <textarea id="pasteBox" placeholder='{"mobileAd": ... }  —  o el HTML completo de la página del anuncio'></textarea>
     <div class="row-actions">
       <button id="btnParse" class="primary">Extraer y añadir</button>
@@ -341,9 +328,6 @@
 
 /* ---------- state ---------- */
 const LS_KEY = 'mobileSucheComparador.v1';
-
-// Sustituye esta dirección por la URL real de tu función serverless de Vercel.
-const PROXY_URL = 'https://mobile-suchen-proxy.vercel.app/api/mobile-ad';
 
 const WEIGHT_LABELS = { 0: 'No cuenta', 1: 'Poco', 2: 'Normal', 3: 'Mucho' };
 
@@ -1107,109 +1091,20 @@ function removeAd(id) {
   save(); render();
 }
 
-function storeAd(rec, successMessage) {
-  const existing = state.ads.findIndex(a => String(a.id) === String(rec.id));
-  if (existing >= 0) state.ads[existing] = rec;
-  else state.ads.push(rec);
-
-  save();
-  render();
-
-  const msg = document.getElementById('addMsg');
-  msg.textContent = successMessage;
-  msg.className = 'msg ok';
-}
-
 function addFromBox() {
   const box = document.getElementById('pasteBox');
   const msg = document.getElementById('addMsg');
   try {
     const rec = parseInput(box.value);
-    const existing = state.ads.some(a => String(a.id) === String(rec.id));
-    storeAd(
-      rec,
-      existing
-        ? 'Anuncio actualizado: ' + shortName(rec)
-        : 'Añadido: ' + shortName(rec) + (rec.withdrawn ? ' (retirado, datos parciales)' : '')
-    );
+    const existing = state.ads.findIndex(a => a.id === rec.id);
+    if (existing >= 0) { state.ads[existing] = rec; msg.textContent = 'Anuncio actualizado: ' + shortName(rec); }
+    else { state.ads.push(rec); msg.textContent = 'Añadido: ' + shortName(rec) + (rec.withdrawn ? ' (retirado, datos parciales)' : ''); }
+    msg.className = 'msg ok';
     box.value = '';
+    save(); render();
   } catch (e) {
     msg.textContent = e.message;
     msg.className = 'msg err';
-  }
-}
-
-function validMobileUrl(value) {
-  try {
-    const url = new URL(value);
-    const host = url.hostname.toLowerCase();
-    return url.protocol === 'https:' && (host === 'mobile.de' || host.endsWith('.mobile.de'));
-  } catch (e) {
-    return false;
-  }
-}
-
-async function addFromUrl() {
-  const input = document.getElementById('adUrl');
-  const msg = document.getElementById('addMsg');
-  const button = document.getElementById('btnLoadUrl');
-  const value = input.value.trim();
-
-  try {
-    if (!value) throw new Error('Introduce la URL de un anuncio.');
-    if (!validMobileUrl(value)) throw new Error('La URL debe ser HTTPS y pertenecer a mobile.de.');
-    if (PROXY_URL.includes('TU-PROYECTO')) {
-      throw new Error('Antes debes sustituir PROXY_URL por la dirección de tu función de Vercel.');
-    }
-
-    button.disabled = true;
-    button.textContent = 'Descargando…';
-    msg.textContent = 'Obteniendo el anuncio…';
-    msg.className = 'msg';
-
-    const response = await fetch(PROXY_URL + '?url=' + encodeURIComponent(value), {
-      headers: { Accept: 'text/plain, application/json' }
-    });
-
-    if (!response.ok) {
-      let errorMessage = 'No se pudo descargar el anuncio.';
-      const type = response.headers.get('content-type') || '';
-      if (type.includes('application/json')) {
-        try {
-          const data = await response.json();
-          if (data && data.error) errorMessage = data.error;
-        } catch (e) { /* respuesta de error no interpretable */ }
-      }
-      throw new Error(errorMessage + ' (HTTP ' + response.status + ')');
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    let html;
-    if (contentType.includes('application/json')) {
-      const data = await response.json();
-      html = data.html || data.content || '';
-    } else {
-      html = await response.text();
-    }
-    if (!html) throw new Error('El proxy no devolvió el contenido del anuncio.');
-
-    const rec = parseInput(html);
-    if (!rec.url) rec.url = value;
-    const existing = state.ads.some(a => String(a.id) === String(rec.id));
-
-    storeAd(
-      rec,
-      existing
-        ? 'Anuncio actualizado desde URL: ' + shortName(rec)
-        : 'Añadido desde URL: ' + shortName(rec)
-    );
-    input.value = '';
-  } catch (e) {
-    msg.textContent = e.message;
-    msg.className = 'msg err';
-  } finally {
-    button.disabled = false;
-    button.textContent = 'Añadir desde URL';
   }
 }
 
@@ -1267,10 +1162,6 @@ document.getElementById('btnPrefs').addEventListener('click', () => {
   p.hidden = !p.hidden;
 });
 document.getElementById('btnParse').addEventListener('click', addFromBox);
-document.getElementById('btnLoadUrl').addEventListener('click', addFromUrl);
-document.getElementById('adUrl').addEventListener('keydown', ev => {
-  if (ev.key === 'Enter') addFromUrl();
-});
 document.getElementById('btnSample').addEventListener('click', () => {
   const rec = JSON.parse(JSON.stringify(SAMPLE_AD));
   const i = state.ads.findIndex(a => a.id === rec.id);
