@@ -1,79 +1,113 @@
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Comparador mobile.de</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Libre+Franklin:wght@700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #f6f7f9;
-    --surface: #ffffff;
-    --surface-2: #eef1f5;
-    --ink: #1b2330;
-    --ink-soft: #5a6577;
-    --line: #d9dee6;
-    --accent: #0f62a8;
+    --bg: oklch(96.5% 0.006 250);
+    --surface: oklch(100% 0 0);
+    --surface-2: oklch(94% 0.008 255);
+    --surface-3: oklch(97% 0.006 255);
+    --ink: oklch(22% 0.02 255);
+    --ink-soft: oklch(48% 0.02 255);
+    --line: oklch(90% 0.01 255);
+    --line-soft: oklch(92.5% 0.01 255);
+    --line-input: oklch(88% 0.01 255);
+    --accent: oklch(28% 0.05 255);
     --accent-ink: #ffffff;
-    --accent-soft: #e3edf7;
-    --good: #1e7d46;
-    --good-bg: #e2f2e8;
-    --warn: #b27a00;
-    --warn-bg: #f7eed7;
-    --bad: #c0392b;
-    --bad-bg: #f9e4e1;
-    --shadow: 0 1px 3px rgba(27,35,48,.08), 0 4px 16px rgba(27,35,48,.06);
+    --accent-bright: oklch(45% 0.13 255);
+    --good: oklch(55% 0.14 145);
+    --good-bg: oklch(93% 0.06 145);
+    --good-text: oklch(35% 0.1 145);
+    --warn: oklch(68% 0.15 80);
+    --warn-bg: oklch(96% 0.04 80);
+    --warn-text: oklch(45% 0.12 80);
+    --bad: oklch(55% 0.18 25);
+    --bad-bg: oklch(93% 0.06 25);
+    --bad-text: oklch(40% 0.14 25);
+    --shadow: 0 1px 2px oklch(20% 0.02 255 / 6%), 0 4px 14px oklch(20% 0.02 255 / 7%);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #14181f;
-      --surface: #1c222c;
-      --surface-2: #242c38;
-      --ink: #e8ecf2;
-      --ink-soft: #97a2b3;
-      --line: #323c4b;
-      --accent: #6aa9e8;
-      --accent-ink: #0e1720;
-      --accent-soft: #1e3a54;
-      --good: #4fc27e;
-      --good-bg: #17372a;
-      --warn: #e0aa3e;
-      --warn-bg: #3a301e;
-      --bad: #e26d5c;
-      --bad-bg: #42221d;
-      --shadow: 0 1px 3px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
+      --bg: oklch(20% 0.015 255);
+      --surface: oklch(25% 0.016 255);
+      --surface-2: oklch(30% 0.017 255);
+      --surface-3: oklch(28% 0.016 255);
+      --ink: oklch(93% 0.01 255);
+      --ink-soft: oklch(68% 0.02 255);
+      --line: oklch(35% 0.016 255);
+      --line-soft: oklch(32% 0.016 255);
+      --line-input: oklch(38% 0.016 255);
+      --accent: oklch(62% 0.13 255);
+      --accent-ink: oklch(15% 0.02 255);
+      --accent-bright: oklch(75% 0.12 255);
+      --good: oklch(65% 0.16 145);
+      --good-bg: oklch(30% 0.06 145);
+      --good-text: oklch(80% 0.14 145);
+      --warn: oklch(75% 0.15 80);
+      --warn-bg: oklch(32% 0.06 80);
+      --warn-text: oklch(82% 0.14 80);
+      --bad: oklch(65% 0.18 25);
+      --bad-bg: oklch(32% 0.07 25);
+      --bad-text: oklch(78% 0.15 25);
+      --shadow: 0 1px 2px oklch(0% 0 0 / 30%), 0 4px 14px oklch(0% 0 0 / 25%);
     }
   }
   :root[data-theme="dark"] {
-    --bg: #14181f;
-    --surface: #1c222c;
-    --surface-2: #242c38;
-    --ink: #e8ecf2;
-    --ink-soft: #97a2b3;
-    --line: #323c4b;
-    --accent: #6aa9e8;
-    --accent-ink: #0e1720;
-    --accent-soft: #1e3a54;
-    --good: #4fc27e;
-    --good-bg: #17372a;
-    --warn: #e0aa3e;
-    --warn-bg: #3a301e;
-    --bad: #e26d5c;
-    --bad-bg: #42221d;
-    --shadow: 0 1px 3px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
+    --bg: oklch(20% 0.015 255);
+    --surface: oklch(25% 0.016 255);
+    --surface-2: oklch(30% 0.017 255);
+    --surface-3: oklch(28% 0.016 255);
+    --ink: oklch(93% 0.01 255);
+    --ink-soft: oklch(68% 0.02 255);
+    --line: oklch(35% 0.016 255);
+    --line-soft: oklch(32% 0.016 255);
+    --line-input: oklch(38% 0.016 255);
+    --accent: oklch(62% 0.13 255);
+    --accent-ink: oklch(15% 0.02 255);
+    --accent-bright: oklch(75% 0.12 255);
+    --good: oklch(65% 0.16 145);
+    --good-bg: oklch(30% 0.06 145);
+    --good-text: oklch(80% 0.14 145);
+    --warn: oklch(75% 0.15 80);
+    --warn-bg: oklch(32% 0.06 80);
+    --warn-text: oklch(82% 0.14 80);
+    --bad: oklch(65% 0.18 25);
+    --bad-bg: oklch(32% 0.07 25);
+    --bad-text: oklch(78% 0.15 25);
+    --shadow: 0 1px 2px oklch(0% 0 0 / 30%), 0 4px 14px oklch(0% 0 0 / 25%);
   }
   :root[data-theme="light"] {
-    --bg: #f6f7f9;
-    --surface: #ffffff;
-    --surface-2: #eef1f5;
-    --ink: #1b2330;
-    --ink-soft: #5a6577;
-    --line: #d9dee6;
-    --accent: #0f62a8;
+    --bg: oklch(96.5% 0.006 250);
+    --surface: oklch(100% 0 0);
+    --surface-2: oklch(94% 0.008 255);
+    --surface-3: oklch(97% 0.006 255);
+    --ink: oklch(22% 0.02 255);
+    --ink-soft: oklch(48% 0.02 255);
+    --line: oklch(90% 0.01 255);
+    --line-soft: oklch(92.5% 0.01 255);
+    --line-input: oklch(88% 0.01 255);
+    --accent: oklch(28% 0.05 255);
     --accent-ink: #ffffff;
-    --accent-soft: #e3edf7;
-    --good: #1e7d46;
-    --good-bg: #e2f2e8;
-    --warn: #b27a00;
-    --warn-bg: #f7eed7;
-    --bad: #c0392b;
-    --bad-bg: #f9e4e1;
-    --shadow: 0 1px 3px rgba(27,35,48,.08), 0 4px 16px rgba(27,35,48,.06);
+    --accent-bright: oklch(45% 0.13 255);
+    --good: oklch(55% 0.14 145);
+    --good-bg: oklch(93% 0.06 145);
+    --good-text: oklch(35% 0.1 145);
+    --warn: oklch(68% 0.15 80);
+    --warn-bg: oklch(96% 0.04 80);
+    --warn-text: oklch(45% 0.12 80);
+    --bad: oklch(55% 0.18 25);
+    --bad-bg: oklch(93% 0.06 25);
+    --bad-text: oklch(40% 0.14 25);
+    --shadow: 0 1px 2px oklch(20% 0.02 255 / 6%), 0 4px 14px oklch(20% 0.02 255 / 7%);
+  }
+
+  :root {
+    --font-display: 'Libre Franklin', system-ui, sans-serif;
+    --font-body: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', Consolas, monospace;
   }
 
   * { box-sizing: border-box; }
@@ -81,31 +115,69 @@
     margin: 0;
     background: var(--bg);
     color: var(--ink);
-    font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
+    font: 400 15px/1.5 var(--font-body);
   }
-  main { width: 100%; margin: 0; padding: 20px 28px 64px; }
+  main { width: 100%; margin: 0; padding: 24px 32px 80px; }
+  a { color: var(--accent-bright); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  ::selection { background: color-mix(in oklch, var(--accent-bright) 25%, transparent); }
 
+  /* Header */
   .topbar {
-    display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;
-    padding: 20px 0 14px; border-bottom: 2px solid var(--ink);
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    padding: 4px 0 22px;
   }
-  .topbar h1 { font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
-  .topbar .sub { color: var(--ink-soft); font-size: 13px; }
-  .topbar .actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 42px; height: 42px; border-radius: 9px; flex: none;
+    background: var(--accent); color: var(--accent-ink);
+    display: flex; align-items: center; justify-content: center;
+    font: 800 16px var(--font-display); letter-spacing: -.02em;
+  }
+  .topbar h1 { font: 800 22px/1.2 var(--font-display); margin: 0; letter-spacing: -.01em; }
+  .topbar .sub { color: var(--ink-soft); font-size: 13px; margin: 2px 0 0; }
+  .topbar .actions { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  .view-toggle { display: flex; padding: 3px; background: var(--surface-2); border-radius: 8px; }
+  .view-toggle button {
+    font: 600 13px var(--font-body); padding: 7px 14px; border-radius: 6px; border: none;
+    background: transparent; color: var(--ink-soft); box-shadow: none;
+  }
+  .view-toggle button.active { background: var(--accent); color: var(--accent-ink); box-shadow: 0 1px 2px oklch(20% 0.02 255 / 15%); }
+  .view-toggle button:hover:not(.active) { color: var(--ink); border-color: transparent; }
 
   button, .btn {
-    font: 600 13px/1 "Segoe UI", system-ui, sans-serif;
-    border: 1px solid var(--line); border-radius: 6px;
+    font: 600 13px/1 var(--font-body);
+    border: 1px solid var(--line); border-radius: 7px;
     background: var(--surface); color: var(--ink);
-    padding: 9px 14px; cursor: pointer;
+    padding: 10px 16px; cursor: pointer;
   }
-  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:hover { border-color: var(--accent-bright); color: var(--accent-bright); }
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  button.primary:hover { filter: brightness(1.08); color: var(--accent-ink); }
+  button.primary:hover { filter: brightness(1.15); color: var(--accent-ink); }
   button.danger:hover { border-color: var(--bad); color: var(--bad); }
   button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
-    outline: 2px solid var(--accent); outline-offset: 2px;
+    outline: 2px solid var(--accent-bright); outline-offset: 2px;
   }
+
+  /* Criteria summary bar */
+  .criteria-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 16px 20px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; margin-bottom: 22px;
+  }
+  .criteria-bar[hidden] { display: none; }
+  .criteria-label {
+    font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft);
+  }
+  .criteria-chip {
+    display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600;
+    padding: 5px 11px; border-radius: 20px; background: var(--surface-2); border: 1px solid var(--line);
+  }
+  .criteria-chip .dots { display: flex; gap: 2px; }
+  .criteria-chip .dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--line); }
+  .criteria-chip .dots span.lit { background: var(--accent-bright); }
+  .criteria-count { margin-left: auto; font-size: 12.5px; color: var(--ink-soft); }
 
   .eyebrow {
     font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
@@ -113,144 +185,200 @@
   }
   section.panel {
     background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-    box-shadow: var(--shadow); padding: 18px 20px; margin-top: 18px;
+    box-shadow: var(--shadow); padding: 22px 24px; margin-bottom: 22px;
   }
   section.panel[hidden] { display: none; }
 
   textarea {
     width: 100%; min-height: 130px; resize: vertical;
-    font: 12px/1.5 Consolas, monospace;
-    background: var(--surface-2); color: var(--ink);
-    border: 1px solid var(--line); border-radius: 6px; padding: 10px;
+    font: 12px/1.5 var(--font-mono);
+    background: var(--surface-3); color: var(--ink);
+    border: 1px solid var(--line-input); border-radius: 7px; padding: 12px;
   }
   .row-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
   .hint { font-size: 13px; color: var(--ink-soft); }
   .msg { font-size: 13px; font-weight: 600; }
-  .msg.ok { color: var(--good); }
-  .msg.err { color: var(--bad); }
+  .msg.ok { color: var(--good-text); }
+  .msg.err { color: var(--bad-text); }
 
   details.help { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
   details.help summary { cursor: pointer; font-weight: 600; color: var(--ink); }
   details.help ol { padding-left: 20px; }
   code.mono {
-    display: block; font: 11px/1.4 Consolas, monospace; background: var(--surface-2);
-    border: 1px solid var(--line); border-radius: 6px; padding: 8px;
+    display: block; font: 11px/1.4 var(--font-mono); background: var(--surface-3);
+    border: 1px solid var(--line-input); border-radius: 7px; padding: 8px;
     word-break: break-all; max-height: 90px; overflow-y: auto; margin: 6px 0;
   }
 
   /* Preferences */
-  .prefs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 20px 28px; }
-  .pref-group h3 { font-size: 13px; margin: 0 0 8px; letter-spacing: .02em; }
+  .prefs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 24px 28px; }
+  .pref-group h3 { font: 700 13px var(--font-display); margin: 0 0 8px; letter-spacing: .01em; }
   table.pref-table { border-collapse: collapse; width: 100%; font-size: 13px; }
   table.pref-table th {
     text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase;
     letter-spacing: .07em; color: var(--ink-soft); padding: 4px 8px 4px 0;
   }
-  table.pref-table td { padding: 4px 8px 4px 0; }
+  table.pref-table td { padding: 5px 8px 5px 0; }
   .pref-table input[type="number"], .pref-table select, .pref-table input[type="text"] {
-    width: 100%; padding: 5px 6px; font: 13px "Segoe UI", system-ui, sans-serif;
-    background: var(--surface-2); color: var(--ink);
-    border: 1px solid var(--line); border-radius: 5px;
+    width: 100%; padding: 6px 7px; font: 12.5px var(--font-mono);
+    background: var(--surface-3); color: var(--ink);
+    border: 1px solid var(--line-input); border-radius: 5px;
     font-variant-numeric: tabular-nums;
   }
-  .wishlist-input { width: 100%; padding: 7px 8px; font: 13px "Segoe UI", system-ui, sans-serif;
-    background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); border-radius: 5px; }
+  .pref-table select { font: 12px var(--font-body); }
+  .wishlist-input { width: 100%; padding: 8px 9px; font: 13px var(--font-body);
+    background: var(--surface-3); color: var(--ink); border: 1px solid var(--line-input); border-radius: 6px; }
 
-  .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 7px 12px; }
+  .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 14px; }
   .check-grid label { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
-  .check-grid input { accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
+  .check-grid input { accent-color: var(--accent-bright); width: 15px; height: 15px; flex: none; }
 
   /* Comparison table */
-  .table-wrap { overflow-x: auto; margin-top: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow); }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow); }
   table.cmp { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
   table.cmp th, table.cmp td {
-    padding: 8px 14px; border-bottom: 1px solid var(--line);
-    font-size: 13.5px; vertical-align: top; text-align: left;
+    padding: 9px 20px; border-bottom: 1px solid var(--line-soft);
+    font-size: 13px; vertical-align: top; text-align: left;
   }
-  table.cmp td.num { font-variant-numeric: tabular-nums; }
+  table.cmp td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
   table.cmp tr:last-child th, table.cmp tr:last-child td { border-bottom: none; }
   table.cmp th.param {
     position: sticky; left: 0; z-index: 2;
     background: var(--surface); color: var(--ink-soft);
-    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
     border-right: 1px solid var(--line); min-width: 150px; max-width: 190px;
   }
-  table.cmp td.car-head { border-right: 1px solid var(--line); min-width: 230px; max-width: 300px; background: var(--surface-2); }
+  table.cmp td.car-head { border-right: 1px solid var(--line); min-width: 230px; max-width: 300px; background: var(--surface); }
   .car-photo {
     display: block; width: 100%; height: 130px; object-fit: cover;
-    border-radius: 6px; margin-bottom: 8px; background: var(--surface);
+    border-radius: 7px; margin-bottom: 10px; background: var(--surface-2);
     box-shadow: inset 0 0 0 1px var(--line);
   }
   table.cmp td { border-right: 1px solid var(--line); min-width: 230px; max-width: 300px; }
-  .car-title { font-weight: 700; font-size: 14px; line-height: 1.3; text-wrap: balance; }
+  .car-title { font: 700 15px/1.3 var(--font-display); text-wrap: balance; }
   .car-meta { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
-  .score-wrap { margin-top: 10px; }
-  .score-num { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-  .score-num small { font-size: 12px; font-weight: 600; color: var(--ink-soft); letter-spacing: 0; }
-  .score-bar { height: 6px; border-radius: 3px; background: var(--line); margin-top: 4px; overflow: hidden; }
+  .score-wrap { margin-top: 10px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .score-num { font: 600 22px var(--font-mono); letter-spacing: -.01em; }
+  .score-num small { font: 500 11px var(--font-body); color: var(--ink-soft); letter-spacing: 0; }
+  .score-bar { height: 5px; width: 76px; border-radius: 3px; background: var(--surface-2); margin-top: 4px; overflow: hidden; flex: none; }
   .score-bar i { display: block; height: 100%; border-radius: 3px; }
   .rank-badge {
-    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .05em;
-    background: var(--accent); color: var(--accent-ink);
-    border-radius: 4px; padding: 2px 7px; margin-bottom: 6px;
+    display: inline-block; font: 700 11px var(--font-body); letter-spacing: .04em;
+    background: var(--accent-bright); color: #fff;
+    border-radius: 20px; padding: 3px 10px; margin-bottom: 8px;
   }
-  .rank-badge.plain { background: var(--surface); color: var(--ink-soft); border: 1px solid var(--line); }
+  .rank-badge.plain { background: var(--surface-2); color: var(--ink-soft); }
 
   td.cell-good { background: var(--good-bg); }
   td.cell-warn { background: var(--warn-bg); }
   td.cell-bad  { background: var(--bad-bg); }
-  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; flex: none; }
   .dot.good { background: var(--good); }
   .dot.warn { background: var(--warn); }
   .dot.bad  { background: var(--bad); }
 
-  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .chip {
-    font-size: 11.5px; font-weight: 600; border-radius: 4px; padding: 2px 7px;
+    font-size: 11px; font-weight: 600; border-radius: 5px; padding: 3px 9px;
     background: var(--surface-2); border: 1px solid var(--line);
   }
-  .chip.good { color: var(--good); background: var(--good-bg); border-color: transparent; }
-  .chip.bad  { color: var(--bad); background: var(--bad-bg); border-color: transparent; }
+  .chip.good { color: var(--good-text); background: var(--good-bg); border-color: transparent; }
+  .chip.bad  { color: var(--bad-text); background: var(--bad-bg); border-color: transparent; }
 
-  .head-actions { display: flex; gap: 6px; margin-top: 10px; }
-  .head-actions button { padding: 5px 9px; font-size: 12px; }
-  a.adlink { color: var(--accent); font-weight: 600; text-decoration: none; }
-  a.adlink:hover { text-decoration: underline; }
+  .head-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .head-actions button { padding: 6px 10px; font-size: 12px; }
+  a.adlink {
+    flex: 1; text-align: center; font-size: 12.5px; font-weight: 600; padding: 9px 12px;
+    border-radius: 7px; background: var(--accent); color: var(--accent-ink);
+  }
+  a.adlink:hover { filter: brightness(1.15); text-decoration: none; }
 
   /* Recommendations */
   .rec-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
   .rec-list li {
-    background: var(--surface-2); border-left: 3px solid var(--accent);
-    border-radius: 0 6px 6px 0; padding: 10px 14px; font-size: 14px;
+    background: var(--surface-3); border-left: 3px solid var(--accent-bright);
+    border-radius: 0 7px 7px 0; padding: 11px 16px; font-size: 13.5px; line-height: 1.5;
   }
   .rec-list li.flag { border-left-color: var(--bad); }
   .rec-list li.win { border-left-color: var(--good); }
 
   .empty {
     text-align: center; padding: 56px 20px; color: var(--ink-soft);
-    background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; margin-top: 18px;
+    background: var(--surface); border: 1px dashed var(--line); border-radius: 10px;
   }
   .empty p { max-width: 46ch; margin: 8px auto; }
+
+  /* Cards view */
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 32px; }
+  .car-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow);
+  }
+  .car-card .photo-wrap {
+    position: relative; height: 190px;
+    background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 10px, var(--surface-3) 10px, var(--surface-3) 20px);
+  }
+  .car-card .photo-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .car-card .photo-wrap .rank-badge { position: absolute; top: 12px; left: 12px; margin: 0; }
+  .car-card .body { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+  .car-card h3 { margin: 0; font: 700 16px/1.3 var(--font-display); }
+  .car-card .meta-line { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-soft); }
+  .car-card .price-row { display: flex; align-items: baseline; justify-content: space-between; }
+  .car-card .price { font: 600 24px var(--font-mono); letter-spacing: -.01em; }
+  .car-card .rating-label { font-size: 11.5px; font-weight: 600; color: var(--good-text); margin-top: 2px; }
+  .car-card .score-block { text-align: right; }
+  .car-card .specs {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; font-size: 12.5px;
+    padding: 12px 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);
+  }
+  .car-card .specs .spec { display: flex; justify-content: space-between; gap: 8px; }
+  .car-card .specs .spec-label { color: var(--ink-soft); }
+  .car-card .specs .spec-value { font: 600 12px var(--font-mono); }
+  .car-card .footer { display: flex; gap: 8px; margin-top: auto; padding-top: 2px; align-items: center; }
+  .car-card .footer .seller-line { font-size: 12.5px; color: var(--ink-soft); }
+  .car-card .footer button.danger { padding: 9px 10px; font-size: 12px; }
 
   @media (prefers-reduced-motion: no-preference) {
     .score-bar i { transition: width .5s ease; }
   }
 </style>
+<script>
+  (function () {
+    var saved = localStorage.getItem('mobileSucheComparador.theme');
+    if (saved === 'light' || saved === 'dark') document.documentElement.setAttribute('data-theme', saved);
+  })();
+</script>
 
 <main>
   <div class="topbar">
-    <h1>Comparador mobile.de</h1>
-    <span class="sub">extrae, compara y puntúa anuncios según tus preferencias</span>
+    <div class="brand">
+      <div class="logo">CC</div>
+      <div>
+        <h1>Comparador mobile.de</h1>
+        <p class="sub">Extrae anuncios de mobile.de y compáralos según tus propios criterios</p>
+      </div>
+    </div>
     <div class="actions">
-      <button id="btnAdd" class="primary">+ Añadir anuncio</button>
+      <div class="view-toggle">
+        <button id="btnViewCards" class="active">Tarjetas</button>
+        <button id="btnViewTable">Tabla</button>
+      </div>
+      <button id="btnTheme" title="Cambiar tema"></button>
       <button id="btnPrefs">Preferencias</button>
       <button id="btnPublish">Publicar (cars.json)</button>
       <button id="btnLoadShared">Ver catálogo publicado</button>
       <button id="btnExport">Exportar</button>
       <button id="btnImport">Importar</button>
       <input type="file" id="fileImport" accept=".json" hidden>
+      <button id="btnAdd" class="primary">+ Añadir anuncio</button>
     </div>
   </div>
+
+  <section class="criteria-bar" id="criteriaBar" hidden>
+    <span class="criteria-label">Tus criterios</span>
+    <div id="criteriaChips" style="display:contents"></div>
+    <span class="criteria-count" id="criteriaCount"></span>
+  </section>
 
   <section class="panel" id="addPanel" hidden>
     <p class="eyebrow">Añadir anuncio</p>
@@ -324,7 +452,8 @@
     </div>
   </section>
 
-  <div id="tableArea"></div>
+  <div id="cardsArea"></div>
+  <div id="tableArea" hidden></div>
 
   <section class="panel" id="recPanel" hidden>
     <p class="eyebrow">Recomendaciones</p>
@@ -391,6 +520,7 @@ function load() {
   } catch (e) { /* corrupted -> start fresh */ }
   s.prefs = mergePrefs(s.prefs);
   s.columns = Object.assign(defaultColumns(), s.columns || {});
+  s.view = s.view === 'table' ? 'table' : 'cards';
   return s;
 }
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -845,9 +975,41 @@ function colorCellStyle(ad) {
 
 /* ---------- rendering ---------- */
 function render() {
-  renderTable();
+  applyViewToggle();
+  renderCriteriaChips();
+  if (state.view === 'table') renderTable(); else renderCards();
   renderRecs();
   renderPrefs();
+}
+
+function applyViewToggle() {
+  const isCards = state.view !== 'table';
+  document.getElementById('cardsArea').hidden = !isCards;
+  document.getElementById('tableArea').hidden = isCards;
+  document.getElementById('btnViewCards').classList.toggle('active', isCards);
+  document.getElementById('btnViewTable').classList.toggle('active', !isCards);
+}
+
+function renderCriteriaChips() {
+  const bar = document.getElementById('criteriaBar');
+  const wrap = document.getElementById('criteriaChips');
+  const count = document.getElementById('criteriaCount');
+  const P = state.prefs;
+  const chips = [];
+  for (const cfg of Object.values(P.numeric)) if (cfg.weight) chips.push({ label: cfg.label, weight: cfg.weight });
+  for (const cfg of Object.values(P.categorical)) if (cfg.weight && cfg.prefer) chips.push({ label: cfg.label, weight: cfg.weight });
+  if (P.accidentFree.weight) chips.push({ label: 'Sin accidentes', weight: P.accidentFree.weight });
+  if (P.priceRating.weight) chips.push({ label: 'Valoración precio', weight: P.priceRating.weight });
+  if (P.wishlist.weight && P.wishlist.items.length) chips.push({ label: 'Equipamiento deseado', weight: P.wishlist.weight });
+
+  if (!state.ads.length) { bar.hidden = true; return; }
+  bar.hidden = false;
+  wrap.innerHTML = chips.map(c =>
+    '<span class="criteria-chip">' + esc(c.label) +
+    '<span class="dots">' + [0, 1, 2].map(i => '<span class="' + (i < c.weight ? 'lit' : '') + '"></span>').join('') + '</span>' +
+    '</span>'
+  ).join('');
+  count.textContent = state.ads.length + (state.ads.length === 1 ? ' anuncio comparado' : ' anuncios comparados');
 }
 
 function evalAll() {
@@ -923,14 +1085,66 @@ const ROW_DEFS = [
   { id: 'captured', label: 'Capturado', fn: ad => esc(ad.capturedAt) }
 ];
 
+function cardsEmptyHtml() {
+  return '<div class="empty"><strong>Aún no hay anuncios.</strong>' +
+    '<p>Añade el primero desde mobile.de con el bookmarklet automático, usa el método manual de respaldo o carga el ejemplo para ver cómo funciona.</p>' +
+    '<button class="primary" onclick="openAdd()">+ Añadir anuncio</button></div>';
+}
+
+function renderCards() {
+  const area = document.getElementById('cardsArea');
+  if (!state.ads.length) { area.innerHTML = cardsEmptyHtml(); return; }
+
+  const rows = evalAll();
+  let h = '<div class="cards-grid">';
+  rows.forEach((r, i) => {
+    const { ad, ev } = r;
+    const barColor = ev.score >= 70 ? 'var(--good)' : ev.score >= 45 ? 'var(--warn)' : 'var(--bad)';
+    const strengths = ev.parts.filter(p => p.status.cls === 'good' && p.weight >= 2);
+    const weaknesses = ev.parts.filter(p => p.status.cls === 'bad');
+    const specs = [
+      { label: 'Año', value: regYear(ad) ? String(regYear(ad)) : '—' },
+      { label: 'Kilómetros', value: ad.mileageKm !== null && ad.mileageKm !== undefined ? fmtInt.format(ad.mileageKm) + ' km' : '—' },
+      { label: 'Potencia', value: ad.powerPs ? ad.powerPs + ' CV' : '—' },
+      { label: 'Cambio', value: ad.transmission ? esc(ad.transmission) : '—' },
+      { label: 'Combustible', value: ad.fuel ? esc(ad.fuel) : '—' },
+      { label: 'Propietarios', value: ad.owners !== null && ad.owners !== undefined ? String(ad.owners) : '—' }
+    ];
+
+    h += '<article class="car-card">' +
+      '<div class="photo-wrap">' +
+      (ad.imageUrl ? '<img src="' + esc(ad.imageUrl) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '') +
+      (rows.length > 1 ? '<span class="rank-badge' + (i > 0 ? ' plain' : '') + '">' + (i + 1) + 'º</span>' : '') +
+      '</div>' +
+      '<div class="body">' +
+      '<div><h3>' + esc(ad.title) + '</h3><p class="meta-line">' + esc(ad.category || '') + (ad.location ? ' · ' + esc(ad.location) : '') + '</p></div>' +
+      '<div class="price-row">' +
+      '<div><span class="price">' + (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') + '</span>' +
+      (ad.priceRating ? '<div class="rating-label">' + esc(ad.priceRating.label) + '</div>' : '') +
+      '</div>' +
+      '<div class="score-block"><span class="score-num">' + (ev.score ?? '—') + '<small> /100</small></span>' +
+      '<div class="score-bar"><i style="width:' + (ev.score || 0) + '%;background:' + barColor + '"></i></div></div>' +
+      '</div>' +
+      '<div class="specs">' + specs.map(s => '<div class="spec"><span class="spec-label">' + esc(s.label) + '</span><span class="spec-value">' + esc(s.value) + '</span></div>').join('') + '</div>' +
+      '<div class="chips">' +
+      strengths.map(p => '<span class="chip good">' + esc(p.label) + '</span>').join('') +
+      weaknesses.map(p => '<span class="chip bad">' + esc(p.label) + '</span>').join('') +
+      '</div>' +
+      '<div class="footer">' +
+      (ad.url ? '<a class="adlink" href="' + esc(ad.url) + '" target="_blank" rel="noopener">Ver anuncio ↗</a>' : '') +
+      '<span class="seller-line">' + esc(ad.sellerName || '') + '</span>' +
+      '<button class="danger" onclick="removeAd(' + ad.id + ')" title="Quitar">✕</button>' +
+      '</div>' +
+      '</div>' +
+      '</article>';
+  });
+  h += '</div>';
+  area.innerHTML = h;
+}
+
 function renderTable() {
   const area = document.getElementById('tableArea');
-  if (!state.ads.length) {
-    area.innerHTML = '<div class="empty"><strong>Aún no hay anuncios.</strong>' +
-      '<p>Añade el primero desde mobile.de con el bookmarklet automático, usa el método manual de respaldo o carga el ejemplo para ver cómo funciona.</p>' +
-      '<button class="primary" onclick="openAdd()">+ Añadir anuncio</button></div>';
-    return;
-  }
+  if (!state.ads.length) { area.innerHTML = cardsEmptyHtml(); return; }
 
   const rows = evalAll();
   const partOf = (ev, key) => ev.parts.find(p => p.key === key);
@@ -1166,6 +1380,32 @@ document.getElementById('btnAdd').addEventListener('click', () => {
   p.hidden = !p.hidden;
   if (!p.hidden) document.getElementById('pasteBox').focus();
 });
+document.getElementById('btnViewCards').addEventListener('click', () => {
+  state.view = 'cards'; save(); render();
+});
+document.getElementById('btnViewTable').addEventListener('click', () => {
+  state.view = 'table'; save(); render();
+});
+
+/* ---------- theme (claro/oscuro) ---------- */
+const THEME_KEY = 'mobileSucheComparador.theme';
+function effectiveTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === 'light' || saved === 'dark') return saved;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function updateThemeButton() {
+  const dark = effectiveTheme() === 'dark';
+  document.getElementById('btnTheme').textContent = dark ? '☀️ Modo claro' : '🌙 Modo oscuro';
+}
+document.getElementById('btnTheme').addEventListener('click', () => {
+  const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, next);
+  document.documentElement.setAttribute('data-theme', next);
+  updateThemeButton();
+});
+updateThemeButton();
+
 document.getElementById('btnPrefs').addEventListener('click', () => {
   const p = document.getElementById('prefsPanel');
   p.hidden = !p.hidden;
