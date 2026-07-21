@@ -4,6 +4,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Libre+Franklin:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   :root {
     --bg: oklch(96.5% 0.006 250);
@@ -318,6 +320,9 @@
     font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
     color: var(--ink-soft); background: var(--surface-2);
   }
+  table.search-table th.sortable { cursor: pointer; user-select: none; }
+  table.search-table th.sortable:hover { color: var(--ink); }
+  table.search-table th .sort-arrow { margin-left: 4px; color: var(--accent-bright); }
   table.search-table tr:last-child td { border-bottom: none; }
   table.search-table tr:hover td { background: var(--surface-2); }
   table.search-table td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
@@ -326,6 +331,16 @@
   table.search-table td.rating-cell.warn { color: var(--warn-text); font-weight: 600; }
   table.search-table td.rating-cell.bad { color: var(--bad-text); font-weight: 600; }
   table.search-table button.danger { padding: 4px 8px; font-size: 11px; }
+
+  .search-map { height: 480px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin: 4px 0 14px; }
+  .map-pin-popup { font: 13px var(--font-body); line-height: 1.4; }
+  .map-pin-popup strong { font-family: var(--font-display); }
+  .map-legend {
+    display: flex; gap: 14px; align-items: center; font-size: 12px; color: var(--ink-soft);
+    margin: 4px 0 14px;
+  }
+  .map-legend span { display: flex; align-items: center; gap: 5px; }
+  .map-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 
   /* Cards view */
   .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 32px; }
@@ -472,9 +487,23 @@
   </section>
 
   <section class="panel" id="searchResultsPanel" hidden>
-    <p class="eyebrow">Resultados de búsqueda</p>
-    <p class="hint">Vista rápida sin puntuar, solo con los datos básicos. Ábrelos y vuelve a capturarlos individualmente si quieres compararlos a fondo.</p>
+    <div class="row-actions" style="justify-content:space-between;margin-top:0">
+      <div>
+        <p class="eyebrow" style="margin-bottom:2px">Resultados de búsqueda</p>
+        <p class="hint" style="margin:0">Vista rápida sin puntuar, solo con los datos básicos. Ábrelos y vuelve a capturarlos individualmente si quieres compararlos a fondo.</p>
+      </div>
+      <div class="view-toggle">
+        <button id="btnSearchViewTable" class="active" onclick="setSearchView('table')">Tabla</button>
+        <button id="btnSearchViewMap" onclick="setSearchView('map')">Mapa</button>
+      </div>
+    </div>
+    <div id="searchMapLegend" class="map-legend" hidden>
+      <span><i style="background:var(--good)"></i> Buen precio</span>
+      <span><i style="background:var(--warn)"></i> Precio razonable</span>
+      <span><i style="background:var(--bad)"></i> Precio elevado</span>
+    </div>
     <div id="searchTableArea"></div>
+    <div id="searchMapArea" class="search-map" hidden></div>
     <div class="row-actions">
       <button class="danger" onclick="clearSearchResults()">Vaciar resultados de búsqueda</button>
     </div>
@@ -637,6 +666,7 @@ function parseSearchListingChunk(chunk) {
   const ratingM = chunk.match(/"priceRating":\{"rating":"([^"]+)","ratingLabel":"((?:[^"\\]|\\.)*)"/);
   const damageM = chunk.match(/"hasDamage":(true|false)/);
   const contactM = chunk.match(/"enumType":"([^"]+)","name":"((?:[^"\\]|\\.)*)"/);
+  const latLongM = chunk.match(/"latLong":\{"lat":(-?[\d.]+),"lon":(-?[\d.]+)\}/);
   const attrM = chunk.match(/"attr":\{([^}]*)\}/);
   const imgM = chunk.match(/"images":\[\{"uri":"([^"]+)"/);
   const makeM = chunk.match(/"make":\{"id":"[^"]*","localized":"((?:[^"\\]|\\.)*)"\}/);
@@ -675,6 +705,8 @@ function parseSearchListingChunk(chunk) {
     sellerType: contactM ? contactM[1] : null,
     sellerName: contactM ? unescapeJsonStr(contactM[2]) : null,
     location: location || null,
+    lat: latLongM ? parseFloat(latLongM[1]) : null,
+    lon: latLongM ? parseFloat(latLongM[2]) : null,
     features: [], highlights: [],
     imageUrl: imgM ? 'https://' + imgM[1] + '?rule=mo-240' : undefined,
     fromSearch: true,
@@ -1100,7 +1132,7 @@ function regularAds() {
 function render() {
   applyViewToggle();
   renderCriteriaChips();
-  renderSearchTable();
+  renderSearchResults();
   if (state.view === 'table') renderTable(); else renderCards();
   renderRecs();
   renderPrefs();
@@ -1144,11 +1176,61 @@ function evalAll() {
 }
 
 /* ---------- tabla compacta de resultados de búsqueda (sin puntuar) ---------- */
-function renderSearchTable() {
+const SEARCH_COLS = [
+  { label: 'Modelo', key: 'title', type: 'str', get: ad => ad.title },
+  { label: 'Precio', key: 'price', type: 'num', get: ad => ad.priceGross },
+  { label: 'Valoración', key: 'rating', type: 'num', get: ad => (ad.priceRating && PRICE_RATING_MAP[ad.priceRating.rating]) ? PRICE_RATING_MAP[ad.priceRating.rating].v : null },
+  { label: 'Año', key: 'year', type: 'num', get: ad => regYear(ad) },
+  { label: 'Km', key: 'km', type: 'num', get: ad => ad.mileageKm },
+  { label: 'Potencia', key: 'power', type: 'num', get: ad => ad.powerPs },
+  { label: 'Combustible', key: 'fuel', type: 'str', get: ad => ad.fuel },
+  { label: 'Cambio', key: 'transmission', type: 'str', get: ad => ad.transmission },
+  { label: 'Ubicación', key: 'location', type: 'num', get: ad => estimateTravelTimeFromMadridHours(ad.location) },
+  { label: 'Vendedor', key: 'seller', type: 'str', get: ad => ad.sellerName }
+];
+let searchSort = { key: null, dir: 1 };
+let searchView = 'table';
+let searchMapInstance = null;
+
+function sortSearchTable(key) {
+  if (searchSort.key === key) searchSort.dir *= -1;
+  else { searchSort.key = key; searchSort.dir = 1; }
+  renderSearchResults();
+}
+
+function setSearchView(view) {
+  searchView = view;
+  renderSearchResults();
+}
+
+function renderSearchResults() {
   const panel = document.getElementById('searchResultsPanel');
   const ads = state.ads.filter(a => a.fromSearch);
   if (!ads.length) { panel.hidden = true; return; }
   panel.hidden = false;
+
+  const isMap = searchView === 'map';
+  document.getElementById('searchTableArea').hidden = isMap;
+  document.getElementById('searchMapArea').hidden = !isMap;
+  document.getElementById('searchMapLegend').hidden = !isMap;
+  document.getElementById('btnSearchViewTable').classList.toggle('active', !isMap);
+  document.getElementById('btnSearchViewMap').classList.toggle('active', isMap);
+
+  if (isMap) renderSearchMap(ads); else renderSearchTable(ads);
+}
+
+function renderSearchTable(ads) {
+  let list = ads;
+  if (searchSort.key) {
+    const col = SEARCH_COLS.find(c => c.key === searchSort.key);
+    list = ads.slice().sort((a, b) => {
+      const va = col.get(a), vb = col.get(b);
+      if (va === null || va === undefined) return 1;
+      if (vb === null || vb === undefined) return -1;
+      const cmp = col.type === 'num' ? (va - vb) : String(va).localeCompare(String(vb), 'es');
+      return cmp * searchSort.dir;
+    });
+  }
 
   const ratingCls = ad => {
     if (!ad.priceRating || !PRICE_RATING_MAP[ad.priceRating.rating]) return '';
@@ -1156,10 +1238,13 @@ function renderSearchTable() {
   };
 
   let h = '<div class="search-table-wrap"><table class="search-table"><thead><tr>' +
-    '<th>Modelo</th><th>Precio</th><th>Valoración</th><th>Año</th><th>Km</th><th>Potencia</th>' +
-    '<th>Combustible</th><th>Cambio</th><th>Ubicación</th><th>Vendedor</th><th></th>' +
+    SEARCH_COLS.map(c => {
+      const active = searchSort.key === c.key;
+      const arrow = active ? (searchSort.dir === 1 ? '▲' : '▼') : '';
+      return '<th class="sortable" onclick="sortSearchTable(\'' + c.key + '\')">' + esc(c.label) + (arrow ? '<span class="sort-arrow">' + arrow + '</span>' : '') + '</th>';
+    }).join('') + '<th></th>' +
     '</tr></thead><tbody>';
-  for (const ad of ads) {
+  for (const ad of list) {
     h += '<tr>' +
       '<td class="title-cell">' + (ad.url ? '<a href="' + esc(ad.url) + '" target="_blank" rel="noopener">' + esc(ad.title) + '</a>' : esc(ad.title)) + '</td>' +
       '<td class="num">' + (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') + '</td>' +
@@ -1176,6 +1261,51 @@ function renderSearchTable() {
   }
   h += '</tbody></table></div>';
   document.getElementById('searchTableArea').innerHTML = h;
+}
+
+// Mapa con Leaflet/OpenStreetMap (CDN): un punto por anuncio con coordenadas conocidas,
+// coloreado según la valoración de precio de mobile.de (mismo criterio good/warn/bad
+// que el resto de la app, leído directamente de las variables CSS del tema activo).
+function renderSearchMap(ads) {
+  const area = document.getElementById('searchMapArea');
+  if (typeof L === 'undefined') {
+    area.innerHTML = '<p class="hint" style="padding:16px">No se pudo cargar el mapa (sin conexión a la librería externa).</p>';
+    return;
+  }
+  const withCoords = ads.filter(a => a.lat !== null && a.lat !== undefined && a.lon !== null && a.lon !== undefined);
+
+  if (!searchMapInstance) {
+    searchMapInstance = L.map(area).setView([50.1, 10.4], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 18
+    }).addTo(searchMapInstance);
+    searchMapInstance.__layer = L.layerGroup().addTo(searchMapInstance);
+  }
+  searchMapInstance.__layer.clearLayers();
+
+  const colorFor = ad => {
+    const cls = (ad.priceRating && PRICE_RATING_MAP[ad.priceRating.rating]) ? PRICE_RATING_MAP[ad.priceRating.rating].cls : null;
+    const varName = cls ? '--' + cls : '--ink-soft';
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  };
+
+  const bounds = [];
+  withCoords.forEach(ad => {
+    const marker = L.circleMarker([ad.lat, ad.lon], {
+      radius: 8, color: '#fff', weight: 1.5, fillColor: colorFor(ad), fillOpacity: 0.9
+    }).addTo(searchMapInstance.__layer);
+    marker.bindPopup(
+      '<div class="map-pin-popup"><strong>' + esc(ad.title) + '</strong><br>' +
+      (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') +
+      (ad.priceRating ? ' · ' + esc(ad.priceRating.label) : '') + '</div>'
+    );
+    bounds.push([ad.lat, ad.lon]);
+  });
+
+  setTimeout(() => {
+    searchMapInstance.invalidateSize();
+    if (bounds.length) searchMapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
+  }, 50);
 }
 
 function clearSearchResults() {
