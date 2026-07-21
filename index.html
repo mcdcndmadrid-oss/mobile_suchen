@@ -308,6 +308,25 @@
   }
   .empty p { max-width: 46ch; margin: 8px auto; }
 
+  /* Compact search-results table (un anuncio por fila, sin puntuar) */
+  .search-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; margin: 4px 0 14px; }
+  table.search-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.search-table th, table.search-table td {
+    padding: 8px 14px; border-bottom: 1px solid var(--line-soft); text-align: left; white-space: nowrap;
+  }
+  table.search-table th {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--ink-soft); background: var(--surface-2);
+  }
+  table.search-table tr:last-child td { border-bottom: none; }
+  table.search-table tr:hover td { background: var(--surface-2); }
+  table.search-table td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  table.search-table td.title-cell { white-space: normal; max-width: 260px; font-weight: 600; }
+  table.search-table td.rating-cell.good { color: var(--good-text); font-weight: 600; }
+  table.search-table td.rating-cell.warn { color: var(--warn-text); font-weight: 600; }
+  table.search-table td.rating-cell.bad { color: var(--bad-text); font-weight: 600; }
+  table.search-table button.danger { padding: 4px 8px; font-size: 11px; }
+
   /* Cards view */
   .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 32px; }
   .car-card {
@@ -382,7 +401,7 @@
 
   <section class="panel" id="addPanel" hidden>
     <p class="eyebrow">Añadir anuncio</p>
-    <p class="hint"><strong>Método recomendado:</strong> instala una vez el bookmarklet automático. Después, desde cualquier anuncio individual de mobile.de, pulsa el marcador y el coche se añadirá directamente a este comparador.</p>
+    <p class="hint"><strong>Método recomendado:</strong> instala una vez el bookmarklet automático. Después, desde un anuncio individual o desde una página de resultados de búsqueda de mobile.de, pulsa el marcador: importa ese anuncio, o todos los de la búsqueda, directamente a este comparador.</p>
     <details class="help" open>
       <summary>Añadir automáticamente con un clic</summary>
       <ol>
@@ -392,16 +411,16 @@
       <code class="mono" id="bmCode"></code>
       <div class="row-actions"><button id="btnCopyBm" class="primary">Copiar bookmarklet automático</button></div>
       <ol start="3">
-        <li>Abre un anuncio individual en mobile.de y pulsa el marcador.</li>
-        <li>El comparador se abrirá o pasará al frente y añadirá el anuncio automáticamente.</li>
+        <li>Abre un anuncio individual, <strong>o una búsqueda con resultados</strong>, en mobile.de y pulsa el marcador.</li>
+        <li>El comparador se abrirá o pasará al frente y añadirá el anuncio (o todos los de la búsqueda) automáticamente.</li>
       </ol>
-      <p class="hint">Si el navegador bloquea la ventana o la comunicación, el bookmarklet copiará los datos como respaldo para que puedas pegarlos abajo.</p>
+      <p class="hint">Si el navegador bloquea la ventana o la comunicación, el bookmarklet copiará los datos como respaldo para que puedas pegarlos abajo. En una búsqueda solo se capturan los resultados ya cargados en la página (cambia de página en mobile.de y vuelve a pulsar para el resto).</p>
     </details>
 
     <details class="help">
       <summary>Método manual de respaldo</summary>
-      <p class="hint">Pega el JSON copiado por el bookmarklet o el código fuente completo de la página (Ctrl+U → Ctrl+A → Ctrl+C).</p>
-      <textarea id="pasteBox" placeholder='{"mobileAd": ... }  —  o el HTML completo de la página del anuncio'></textarea>
+      <p class="hint">Pega el JSON copiado por el bookmarklet, o el código fuente completo (Ctrl+U → Ctrl+A → Ctrl+C) de un anuncio o de una página de resultados de búsqueda.</p>
+      <textarea id="pasteBox" placeholder='{"mobileAd": ... }  —  o el HTML completo de un anuncio o de una búsqueda'></textarea>
       <div class="row-actions">
         <button id="btnParse" class="primary">Extraer y añadir</button>
         <button id="btnSample">Cargar ejemplo (BMW 318i)</button>
@@ -449,6 +468,15 @@
           <button id="btnResetPrefs">Valores por defecto</button>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section class="panel" id="searchResultsPanel" hidden>
+    <p class="eyebrow">Resultados de búsqueda</p>
+    <p class="hint">Vista rápida sin puntuar, solo con los datos básicos. Ábrelos y vuelve a capturarlos individualmente si quieres compararlos a fondo.</p>
+    <div id="searchTableArea"></div>
+    <div class="row-actions">
+      <button class="danger" onclick="clearSearchResults()">Vaciar resultados de búsqueda</button>
     </div>
   </section>
 
@@ -540,23 +568,27 @@ function extractBalancedJson(text, startIdx) {
   return null;
 }
 
+// Siempre devuelve un array de anuncios: 1 elemento para un anuncio individual,
+// varios si lo pegado/capturado es una página de resultados de búsqueda.
 function parseInput(text) {
   text = text.trim();
   if (!text) throw new Error('El cuadro está vacío.');
 
-  let rec;
+  let recs;
   if (text[0] === '{') {
     let obj;
     try { obj = JSON.parse(text); }
     catch (e) { throw new Error('El JSON pegado no es válido: ' + e.message); }
-    if (obj.mobileAd) rec = normalizeEntry(obj.mobileAd, obj.capturedUrl);
+    if (obj.mobileAd) recs = [normalizeEntry(obj.mobileAd, obj.capturedUrl)];
     else if (obj.nextFlightHtml) {
-      rec = parseNextFlightAd(obj.nextFlightHtml, obj.capturedUrl);
-      if (!rec) throw new Error('No encuentro un anuncio en los datos capturados.');
+      recs = isSearchResultsText(obj.nextFlightHtml)
+        ? parseSearchResultsPage(obj.nextFlightHtml)
+        : [parseNextFlightAd(obj.nextFlightHtml, obj.capturedUrl)].filter(Boolean);
+      if (!recs.length) throw new Error('No encuentro anuncios en los datos capturados.');
     }
-    else if (obj.id && obj.title && ('priceGross' in obj)) rec = obj; // already normalized
+    else if (obj.id && obj.title && ('priceGross' in obj)) recs = [obj]; // already normalized
     else throw new Error('JSON no reconocido: falta la clave "mobileAd".');
-    if (obj.imageUrl) rec.imageUrl = obj.imageUrl;
+    if (obj.imageUrl && recs.length === 1 && !recs[0].imageUrl) recs[0].imageUrl = obj.imageUrl;
   } else if (text.includes('__INITIAL_STATE__')) {
     const marker = '__INITIAL_STATE__';
     const mi = text.indexOf(marker);
@@ -569,18 +601,102 @@ function parseInput(text) {
     const ads = st && st.search && st.search.vip && st.search.vip.ads;
     if (!ads || !Object.keys(ads).length) throw new Error('La página no contiene un anuncio (¿era una página de resultados?).');
     const key = Object.keys(ads)[0];
-    rec = normalizeEntry(ads[key]);
+    recs = [normalizeEntry(ads[key])];
+  } else if (isSearchResultsText(text)) {
+    recs = parseSearchResultsPage(text);
+    if (!recs.length) throw new Error('Parece una página de resultados de mobile.de, pero no pude extraer ningún anuncio.');
   } else {
     // mobile.de/es (y otras localizaciones) usan un frontend distinto (Next.js) sin __INITIAL_STATE__
-    rec = parseNextFlightAd(text);
+    const rec = parseNextFlightAd(text);
     if (!rec) throw new Error('No encuentro datos de mobile.de en lo pegado. Pega el código fuente de la página (Ctrl+U) o usa el bookmarklet.');
+    recs = [rec];
   }
 
-  if (!rec.imageUrl) {
+  if (recs.length === 1 && !recs[0].imageUrl) {
     const img = extractImageUrl(text);
-    if (img) rec.imageUrl = img;
+    if (img) recs[0].imageUrl = img;
   }
-  return rec;
+  return recs;
+}
+
+/* ---------- página de resultados de búsqueda (bulk import) ----------
+   mobile.de/es/vehículos/buscar.html (y equivalentes) incrustan un resumen
+   ligero de cada anuncio en "searchResults.listings", con claves abreviadas
+   en "attr" (ml=kilometraje, pw=potencia, ft=combustible, tr=cambio, etc.). */
+function isSearchResultsText(text) {
+  const norm = text.replace(/\\+"/g, '"');
+  return norm.includes('"searchResults"') && norm.includes('"listings"');
+}
+
+function parseSearchListingChunk(chunk) {
+  const idM = chunk.match(/"id":(\d{6,})/);
+  if (!idM) return null;
+  const shortTitleM = chunk.match(/"shortTitle":"((?:[^"\\]|\\.)*)"/);
+  const subTitleM = chunk.match(/"subTitle":"((?:[^"\\]|\\.)*)"/);
+  const priceM = chunk.match(/"p":"([\d.,]+\s?€)"/);
+  const ratingM = chunk.match(/"priceRating":\{"rating":"([^"]+)","ratingLabel":"((?:[^"\\]|\\.)*)"/);
+  const damageM = chunk.match(/"hasDamage":(true|false)/);
+  const contactM = chunk.match(/"enumType":"([^"]+)","name":"((?:[^"\\]|\\.)*)"/);
+  const attrM = chunk.match(/"attr":\{([^}]*)\}/);
+  const imgM = chunk.match(/"images":\[\{"uri":"([^"]+)"/);
+  const makeM = chunk.match(/"make":\{"id":"[^"]*","localized":"((?:[^"\\]|\\.)*)"\}/);
+  const modelM = chunk.match(/"model":\{"id":"[^"]*","localized":"((?:[^"\\]|\\.)*)"\}/);
+
+  const attr = {};
+  if (attrM) {
+    const re = /"(\w+)":"((?:[^"\\]|\\.)*)"/g;
+    let m;
+    while ((m = re.exec(attrM[1]))) attr[m[1]] = unescapeJsonStr(m[2]);
+  }
+
+  const titleParts = [shortTitleM && unescapeJsonStr(shortTitleM[1]), subTitleM && unescapeJsonStr(subTitleM[1])].filter(Boolean);
+  const title = titleParts.join(' ') || [makeM && unescapeJsonStr(makeM[1]), modelM && unescapeJsonStr(modelM[1])].filter(Boolean).join(' ') || 'Anuncio sin título';
+  const location = [attr.loc, (attr.cn && attr.z) ? attr.cn + '-' + attr.z : null].filter(Boolean).join(' ');
+
+  return {
+    id: parseInt(idM[1], 10),
+    url: 'https://www.mobile.de/es/veh%C3%ADculos/detalles.html?id=' + idM[1],
+    title,
+    make: makeM ? unescapeJsonStr(makeM[1]) : null,
+    model: modelM ? unescapeJsonStr(modelM[1]) : null,
+    category: attr.c || null,
+    priceGross: priceM ? toNum(priceM[1]) : null,
+    priceRating: ratingM ? { rating: ratingM[1], label: unescapeJsonStr(ratingM[2]) } : null,
+    firstRegistration: attr.fr || null,
+    mileageKm: toNum(attr.ml),
+    powerPs: parsePowerPs(attr.pw),
+    fuel: attr.ft || null, transmission: attr.tr || null,
+    cubicCapacity: toNum(attr.cc),
+    owners: toNum(attr.pvo),
+    hu: attr.gi || null,
+    damageCondition: damageM ? (damageM[1] === 'true' ? 'Vehículo accidentado' : 'Sin accidentes') : null,
+    emissionClass: attr.emc || null,
+    color: attr.ecol || null, seats: toNum(attr.sc),
+    sellerType: contactM ? contactM[1] : null,
+    sellerName: contactM ? unescapeJsonStr(contactM[2]) : null,
+    location: location || null,
+    features: [], highlights: [],
+    imageUrl: imgM ? 'https://' + imgM[1] + '?rule=mo-240' : undefined,
+    fromSearch: true,
+    capturedAt: new Date().toISOString().slice(0, 10)
+  };
+}
+
+function parseSearchResultsPage(text) {
+  const norm = text.replace(/\\+"/g, '"');
+  const idxs = [];
+  let idx = -1;
+  while ((idx = norm.indexOf('"isEyeCatcher"', idx + 1)) !== -1) idxs.push(idx);
+
+  const seen = new Set();
+  const records = [];
+  idxs.forEach((start, i) => {
+    const nextStart = idxs[i + 1];
+    const windowEnd = start + Math.min(nextStart ? nextStart - start : 7000, 7000);
+    const rec = parseSearchListingChunk(norm.slice(start, windowEnd));
+    if (rec && !seen.has(rec.id)) { seen.add(rec.id); records.push(rec); }
+  });
+  return records;
 }
 
 // La URL de la foto de portada sigue este mismo patrón en ambos frontends de mobile.de;
@@ -974,9 +1090,17 @@ function colorCellStyle(ad) {
 }
 
 /* ---------- rendering ---------- */
+// Los anuncios importados en bloque desde una búsqueda (fromSearch) se muestran
+// aparte, en una tabla compacta sin puntuar; el comparador detallado (tarjetas/tabla
+// con scoring y recomendaciones) solo trabaja con los anuncios capturados uno a uno.
+function regularAds() {
+  return state.ads.filter(a => !a.fromSearch);
+}
+
 function render() {
   applyViewToggle();
   renderCriteriaChips();
+  renderSearchTable();
   if (state.view === 'table') renderTable(); else renderCards();
   renderRecs();
   renderPrefs();
@@ -1002,20 +1126,64 @@ function renderCriteriaChips() {
   if (P.priceRating.weight) chips.push({ label: 'Valoración precio', weight: P.priceRating.weight });
   if (P.wishlist.weight && P.wishlist.items.length) chips.push({ label: 'Equipamiento deseado', weight: P.wishlist.weight });
 
-  if (!state.ads.length) { bar.hidden = true; return; }
+  const ads = regularAds();
+  if (!ads.length) { bar.hidden = true; return; }
   bar.hidden = false;
   wrap.innerHTML = chips.map(c =>
     '<span class="criteria-chip">' + esc(c.label) +
     '<span class="dots">' + [0, 1, 2].map(i => '<span class="' + (i < c.weight ? 'lit' : '') + '"></span>').join('') + '</span>' +
     '</span>'
   ).join('');
-  count.textContent = state.ads.length + (state.ads.length === 1 ? ' anuncio comparado' : ' anuncios comparados');
+  count.textContent = ads.length + (ads.length === 1 ? ' anuncio comparado' : ' anuncios comparados');
 }
 
 function evalAll() {
-  return state.ads
+  return regularAds()
     .map(ad => ({ ad, ev: evaluateAd(ad, state.prefs) }))
     .sort((a, b) => (b.ev.score ?? -1) - (a.ev.score ?? -1));
+}
+
+/* ---------- tabla compacta de resultados de búsqueda (sin puntuar) ---------- */
+function renderSearchTable() {
+  const panel = document.getElementById('searchResultsPanel');
+  const ads = state.ads.filter(a => a.fromSearch);
+  if (!ads.length) { panel.hidden = true; return; }
+  panel.hidden = false;
+
+  const ratingCls = ad => {
+    if (!ad.priceRating || !PRICE_RATING_MAP[ad.priceRating.rating]) return '';
+    return PRICE_RATING_MAP[ad.priceRating.rating].cls;
+  };
+
+  let h = '<div class="search-table-wrap"><table class="search-table"><thead><tr>' +
+    '<th>Modelo</th><th>Precio</th><th>Valoración</th><th>Año</th><th>Km</th><th>Potencia</th>' +
+    '<th>Combustible</th><th>Cambio</th><th>Ubicación</th><th>Vendedor</th><th></th>' +
+    '</tr></thead><tbody>';
+  for (const ad of ads) {
+    h += '<tr>' +
+      '<td class="title-cell">' + (ad.url ? '<a href="' + esc(ad.url) + '" target="_blank" rel="noopener">' + esc(ad.title) + '</a>' : esc(ad.title)) + '</td>' +
+      '<td class="num">' + (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') + '</td>' +
+      '<td class="rating-cell ' + ratingCls(ad) + '">' + (ad.priceRating ? esc(ad.priceRating.label) : '—') + '</td>' +
+      '<td class="num">' + (regYear(ad) ?? '—') + '</td>' +
+      '<td class="num">' + (ad.mileageKm !== null && ad.mileageKm !== undefined ? fmtInt.format(ad.mileageKm) : '—') + '</td>' +
+      '<td class="num">' + (ad.powerPs ?? '—') + '</td>' +
+      '<td>' + esc(ad.fuel) + '</td>' +
+      '<td>' + esc(ad.transmission) + '</td>' +
+      '<td>' + esc(ad.location) + '</td>' +
+      '<td>' + esc(ad.sellerName) + '</td>' +
+      '<td><button class="danger" onclick="removeAd(' + ad.id + ')">Quitar</button></td>' +
+      '</tr>';
+  }
+  h += '</tbody></table></div>';
+  document.getElementById('searchTableArea').innerHTML = h;
+}
+
+function clearSearchResults() {
+  const ads = state.ads.filter(a => a.fromSearch);
+  if (!ads.length) return;
+  if (!confirm('¿Quitar los ' + ads.length + ' anuncios de la búsqueda?')) return;
+  state.ads = state.ads.filter(a => !a.fromSearch);
+  save(); render();
 }
 
 /* ---------- comparison table row definitions ---------- */
@@ -1093,7 +1261,7 @@ function cardsEmptyHtml() {
 
 function renderCards() {
   const area = document.getElementById('cardsArea');
-  if (!state.ads.length) { area.innerHTML = cardsEmptyHtml(); return; }
+  if (!regularAds().length) { area.innerHTML = cardsEmptyHtml(); return; }
 
   const rows = evalAll();
   let h = '<div class="cards-grid">';
@@ -1117,7 +1285,8 @@ function renderCards() {
       (rows.length > 1 ? '<span class="rank-badge' + (i > 0 ? ' plain' : '') + '">' + (i + 1) + 'º</span>' : '') +
       '</div>' +
       '<div class="body">' +
-      '<div><h3>' + esc(ad.title) + '</h3><p class="meta-line">' + esc(ad.category || '') + (ad.location ? ' · ' + esc(ad.location) : '') + '</p></div>' +
+      '<div><h3>' + esc(ad.title) + '</h3><p class="meta-line">' + esc(ad.category || '') + (ad.location ? ' · ' + esc(ad.location) : '') +
+      (ad.fromSearch ? ' · <span title="Datos resumidos desde la búsqueda; abre el anuncio para el detalle completo">Búsqueda</span>' : '') + '</p></div>' +
       '<div class="price-row">' +
       '<div><span class="price">' + (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') + '</span>' +
       (ad.priceRating ? '<div class="rating-label">' + esc(ad.priceRating.label) + '</div>' : '') +
@@ -1144,7 +1313,7 @@ function renderCards() {
 
 function renderTable() {
   const area = document.getElementById('tableArea');
-  if (!state.ads.length) { area.innerHTML = cardsEmptyHtml(); return; }
+  if (!regularAds().length) { area.innerHTML = cardsEmptyHtml(); return; }
 
   const rows = evalAll();
   const partOf = (ev, key) => ev.parts.find(p => p.key === key);
@@ -1163,7 +1332,8 @@ function renderTable() {
       (rows.length > 1 ? '<span class="rank-badge' + (i > 0 ? ' plain' : '') + '">' + (i + 1) + 'º</span>' : '') +
       '<div class="car-title">' + esc(ad.title) + '</div>' +
       '<div class="car-meta">' + esc(ad.category || '') + (ad.modelRange ? ' · ' + esc(ad.modelRange) : '') +
-      (ad.withdrawn ? ' · <strong style="color:var(--bad)">RETIRADO</strong>' : '') + '</div>' +
+      (ad.withdrawn ? ' · <strong style="color:var(--bad)">RETIRADO</strong>' : '') +
+      (ad.fromSearch ? ' · <span title="Datos resumidos desde la búsqueda; abre el anuncio para el detalle completo">Búsqueda</span>' : '') + '</div>' +
       '<div class="score-wrap"><span class="score-num">' + (ev.score ?? '—') + '<small> /100</small></span>' +
       '<div class="score-bar"><i style="width:' + (ev.score || 0) + '%;background:' + barColor + '"></i></div></div>' +
       '<div class="head-actions">' +
@@ -1197,7 +1367,7 @@ function renderTable() {
 function renderRecs() {
   const panel = document.getElementById('recPanel');
   const list = document.getElementById('recList');
-  if (state.ads.length < 1) { panel.hidden = true; return; }
+  if (regularAds().length < 1) { panel.hidden = true; return; }
   panel.hidden = false;
 
   const rows = evalAll();
@@ -1314,17 +1484,41 @@ function removeAd(id) {
   save(); render();
 }
 
+// Añade o actualiza varios anuncios a la vez (usado tanto para un anuncio suelto
+// como para el lote que sale de una página de resultados de búsqueda).
+function upsertRecords(recs) {
+  let added = 0, updated = 0;
+  for (const rec of recs) {
+    const existing = state.ads.findIndex(a => String(a.id) === String(rec.id));
+    if (existing >= 0) { state.ads[existing] = rec; updated++; }
+    else { state.ads.push(rec); added++; }
+  }
+  save();
+  return { added, updated, total: recs.length, last: recs[recs.length - 1] };
+}
+
+function summarizeUpsert(result) {
+  if (result.total === 1) {
+    const rec = result.last;
+    if (result.updated) return 'Anuncio actualizado: ' + shortName(rec);
+    return 'Añadido: ' + shortName(rec) + (rec.withdrawn ? ' (retirado, datos parciales)' : '');
+  }
+  const parts = [];
+  if (result.added) parts.push(result.added + ' añadidos');
+  if (result.updated) parts.push(result.updated + ' actualizados');
+  return parts.join(', ') + ' de ' + result.total + ' anuncios encontrados en la búsqueda.';
+}
+
 function addFromBox() {
   const box = document.getElementById('pasteBox');
   const msg = document.getElementById('addMsg');
   try {
-    const rec = parseInput(box.value);
-    const existing = state.ads.findIndex(a => a.id === rec.id);
-    if (existing >= 0) { state.ads[existing] = rec; msg.textContent = 'Anuncio actualizado: ' + shortName(rec); }
-    else { state.ads.push(rec); msg.textContent = 'Añadido: ' + shortName(rec) + (rec.withdrawn ? ' (retirado, datos parciales)' : ''); }
+    const recs = parseInput(box.value);
+    const result = upsertRecords(recs);
+    msg.textContent = summarizeUpsert(result);
     msg.className = 'msg ok';
     box.value = '';
-    save(); render();
+    render();
   } catch (e) {
     msg.textContent = e.message;
     msg.className = 'msg err';
@@ -1372,7 +1566,7 @@ const SAMPLE_AD = {
   "capturedAt": "2026-07-13"
 };
 
-const BOOKMARKLET = "javascript:(()=>{const APP='https://mcdcndmadrid-oss.github.io/mobile_suchen/';const APP_ORIGIN='https://mcdcndmadrid-oss.github.io';const fallback=p=>{const t=JSON.stringify(p);navigator.clipboard.writeText(t).then(()=>alert('No se pudo confirmar el envío. Los datos se han copiado; pégalos en el comparador.')).catch(()=>prompt('Copia estos datos y pégalos en el comparador:',t))};const im=document.querySelector('img[src*=\"classistatic\"]');const imageUrl=im?im.src.split('?')[0]+'?rule=mo-240':undefined;let payload=null;const s=window.__INITIAL_STATE__;const a=s&&s.search&&s.search.vip&&s.search.vip.ads;if(a&&Object.keys(a).length){const k=Object.keys(a)[0];payload={mobileAd:a[k],capturedUrl:location.href,imageUrl}}else{const sc=[...document.querySelectorAll('script')].map(x=>x.textContent||'').filter(x=>x.includes('__next_f.push'));if(sc.length)payload={nextFlightHtml:sc.join('\\n'),capturedUrl:location.href,imageUrl}}if(!payload){alert('No se encontraron datos del anuncio. Abre un anuncio individual de mobile.de y vuelve a pulsar.');return}const target=window.open(APP,'mobileComparador');if(!target){fallback(payload);return}let attempts=0;let finished=false;const stop=()=>{finished=true;clearInterval(timer);window.removeEventListener('message',onMessage)};function onMessage(ev){if(ev.origin!==APP_ORIGIN||!ev.data||ev.data.type!=='MOBILE_AD_IMPORT_ACK')return;if(ev.data.ok){stop();try{target.focus()}catch(e){}alert('Anuncio añadido al comparador.')}else{stop();alert('El comparador no pudo importar el anuncio: '+(ev.data.error||'error desconocido'));fallback(payload)}}window.addEventListener('message',onMessage);const send=()=>{if(finished)return;attempts++;try{target.postMessage({type:'MOBILE_AD_IMPORT',payload},APP_ORIGIN);target.focus()}catch(e){}if(attempts>=30){stop();fallback(payload)}};const timer=setInterval(send,500);send()})();";
+const BOOKMARKLET = "javascript:(()=>{const APP='https://mcdcndmadrid-oss.github.io/mobile_suchen/';const APP_ORIGIN='https://mcdcndmadrid-oss.github.io';const fallback=p=>{const t=JSON.stringify(p);navigator.clipboard.writeText(t).then(()=>alert('No se pudo confirmar el envío. Los datos se han copiado; pégalos en el comparador.')).catch(()=>prompt('Copia estos datos y pégalos en el comparador:',t))};const im=document.querySelector('img[src*=\"classistatic\"]');const imageUrl=im?im.src.split('?')[0]+'?rule=mo-240':undefined;let payload=null;const s=window.__INITIAL_STATE__;const a=s&&s.search&&s.search.vip&&s.search.vip.ads;if(a&&Object.keys(a).length){const k=Object.keys(a)[0];payload={mobileAd:a[k],capturedUrl:location.href,imageUrl}}else{const sc=[...document.querySelectorAll('script')].map(x=>x.textContent||'').filter(x=>x.includes('__next_f.push'));if(sc.length)payload={nextFlightHtml:sc.join('\\n'),capturedUrl:location.href,imageUrl}}if(!payload){alert('No se encontraron datos. Abre un anuncio individual o una página de resultados de búsqueda de mobile.de y vuelve a pulsar.');return}const target=window.open(APP,'mobileComparador');if(!target){fallback(payload);return}let attempts=0;let finished=false;const stop=()=>{finished=true;clearInterval(timer);window.removeEventListener('message',onMessage)};function onMessage(ev){if(ev.origin!==APP_ORIGIN||!ev.data||ev.data.type!=='MOBILE_AD_IMPORT_ACK')return;if(ev.data.ok){stop();try{target.focus()}catch(e){}alert(ev.data.count>1?(ev.data.count+' anuncios importados al comparador.'):'Anuncio añadido al comparador.')}else{stop();alert('El comparador no pudo importar: '+(ev.data.error||'error desconocido'));fallback(payload)}}window.addEventListener('message',onMessage);const send=()=>{if(finished)return;attempts++;try{target.postMessage({type:'MOBILE_AD_IMPORT',payload},APP_ORIGIN);target.focus()}catch(e){}if(attempts>=30){stop();fallback(payload)}};const timer=setInterval(send,500);send()})();";
 
 /* ---------- wiring ---------- */
 document.getElementById('btnAdd').addEventListener('click', () => {
@@ -1483,24 +1677,17 @@ function isAllowedMobileOrigin(origin) {
 }
 
 function importBookmarkletPayload(payload) {
-  const rec = parseInput(JSON.stringify(payload));
-  const existing = state.ads.findIndex(a => String(a.id) === String(rec.id));
-
-  if (existing >= 0) state.ads[existing] = rec;
-  else state.ads.push(rec);
-
-  save();
+  const recs = parseInput(JSON.stringify(payload));
+  const result = upsertRecords(recs);
   render();
 
   const panel = document.getElementById('addPanel');
   const msg = document.getElementById('addMsg');
   panel.hidden = false;
-  msg.textContent = existing >= 0
-    ? 'Anuncio actualizado automáticamente: ' + shortName(rec)
-    : 'Anuncio añadido automáticamente: ' + shortName(rec);
+  msg.textContent = summarizeUpsert(result) + (recs.length === 1 ? ' (automático)' : '');
   msg.className = 'msg ok';
 
-  return rec;
+  return result;
 }
 
 window.addEventListener('message', event => {
@@ -1513,13 +1700,14 @@ window.addEventListener('message', event => {
   if (!state) return;
 
   try {
-    const rec = importBookmarkletPayload(data.payload);
+    const result = importBookmarkletPayload(data.payload);
     if (event.source) {
       event.source.postMessage({
         type: 'MOBILE_AD_IMPORT_ACK',
         ok: true,
-        id: rec.id,
-        title: rec.title
+        count: result.total,
+        id: result.total === 1 ? result.last.id : undefined,
+        title: result.total === 1 ? result.last.title : undefined
       }, event.origin);
     }
   } catch (e) {
