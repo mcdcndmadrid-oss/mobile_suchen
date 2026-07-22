@@ -1258,11 +1258,19 @@ function evalAll() {
     .sort((a, b) => (b.ev.score ?? -1) - (a.ev.score ?? -1));
 }
 
+// Orden de mejor a peor de los 6 niveles reales de mobile.de, para poder ordenar la
+// tabla sin que "muy buen precio" y "buen precio" queden mezclados (PRICE_RATING_MAP
+// los agrupa a ambos en un único "good" para el scoring, aquí no vale ese agrupado).
+const PRICE_RATING_RANK = {
+  VERY_GOOD_PRICE: 5, GOOD_PRICE: 4, REASONABLE_PRICE: 3,
+  INCREASED_PRICE: 2, HIGH_PRICE: 1, VERY_HIGH_PRICE: 0
+};
+
 /* ---------- tabla compacta de resultados de búsqueda (sin puntuar) ---------- */
 const SEARCH_COLS = [
   { label: 'Modelo', key: 'title', type: 'str', get: ad => ad.title },
   { label: 'Precio', key: 'price', type: 'num', get: ad => ad.priceGross },
-  { label: 'Valoración', key: 'rating', type: 'num', get: ad => (ad.priceRating && PRICE_RATING_MAP[ad.priceRating.rating]) ? PRICE_RATING_MAP[ad.priceRating.rating].v : null },
+  { label: 'Valoración', key: 'rating', type: 'num', get: ad => (ad.priceRating && PRICE_RATING_RANK[ad.priceRating.rating] !== undefined) ? PRICE_RATING_RANK[ad.priceRating.rating] : null },
   { label: 'Año', key: 'year', type: 'num', get: ad => regYear(ad) },
   { label: 'Km', key: 'km', type: 'num', get: ad => ad.mileageKm },
   { label: 'Potencia', key: 'power', type: 'num', get: ad => ad.powerPs },
