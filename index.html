@@ -147,6 +147,11 @@
   }
   .view-toggle button.active { background: var(--accent); color: var(--accent-ink); box-shadow: 0 1px 2px oklch(20% 0.02 255 / 15%); }
   .view-toggle button:hover:not(.active) { color: var(--ink); border-color: transparent; }
+  .tab-count {
+    display: inline-block; margin-left: 6px; font: 700 10.5px var(--font-mono); padding: 1px 6px;
+    border-radius: 10px; background: var(--accent-bright); color: #fff; vertical-align: 1px;
+  }
+  .view-toggle button.active .tab-count { background: rgba(255,255,255,.3); color: inherit; }
 
   button, .btn {
     font: 600 13px/1 var(--font-body);
@@ -408,6 +413,7 @@
         <button id="btnViewCards" class="active">Tarjetas</button>
         <button id="btnViewTable">Tabla</button>
         <button id="btnViewMap">Mapa</button>
+        <button id="btnViewSearch">Búsqueda<span id="searchTabCount" class="tab-count" hidden></span></button>
       </div>
       <button id="btnTheme" title="Cambiar tema"></button>
       <button id="btnPrefs">Preferencias</button>
@@ -588,7 +594,7 @@ function load() {
   } catch (e) { /* corrupted -> start fresh */ }
   s.prefs = mergePrefs(s.prefs);
   s.columns = Object.assign(defaultColumns(), s.columns || {});
-  s.view = ['table', 'map'].includes(s.view) ? s.view : 'cards';
+  s.view = ['table', 'map', 'search'].includes(s.view) ? s.view : 'cards';
   return s;
 }
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -1221,14 +1227,14 @@ function regularAds() {
 }
 
 function render() {
-  applyViewToggle();
   renderCriteriaChips();
   renderSearchResults();
   if (state.view === 'table') renderTable();
   else if (state.view === 'map') renderMap();
-  else renderCards();
+  else if (state.view !== 'search') renderCards();
   renderRecs();
   renderPrefs();
+  applyViewToggle();
 }
 
 function applyViewToggle() {
@@ -1239,6 +1245,20 @@ function applyViewToggle() {
   document.getElementById('btnViewCards').classList.toggle('active', v === 'cards');
   document.getElementById('btnViewTable').classList.toggle('active', v === 'table');
   document.getElementById('btnViewMap').classList.toggle('active', v === 'map');
+  document.getElementById('btnViewSearch').classList.toggle('active', v === 'search');
+
+  // "Búsqueda" es una pestaña aparte: cuando está activa, el resto de secciones del
+  // comparador detallado (criterios activos y recomendaciones) no aplican y se ocultan.
+  // La visibilidad del propio panel de búsqueda la gestiona renderSearchResults().
+  if (v === 'search') {
+    document.getElementById('criteriaBar').hidden = true;
+    document.getElementById('recPanel').hidden = true;
+  }
+
+  const searchCount = state.ads.filter(a => a.fromSearch).length;
+  const badge = document.getElementById('searchTabCount');
+  badge.hidden = !searchCount;
+  badge.textContent = searchCount;
 }
 
 function renderCriteriaChips() {
@@ -1365,8 +1385,13 @@ function adMatchesSearchFilters(ad) {
 function renderSearchResults() {
   const panel = document.getElementById('searchResultsPanel');
   const ads = state.ads.filter(a => a.fromSearch);
-  if (!ads.length) { panel.hidden = true; return; }
-  panel.hidden = false;
+  if (!ads.length) {
+    panel.hidden = state.view !== 'search';
+    document.getElementById('searchTableArea').innerHTML = '<div class="empty"><strong>Aún no hay resultados de búsqueda.</strong>' +
+      '<p>Usa el bookmarklet automático desde una página de resultados de mobile.de para traerlos aquí.</p></div>';
+    return;
+  }
+  panel.hidden = state.view !== 'search';
   renderSearchTable(ads);
 }
 
@@ -1952,6 +1977,9 @@ document.getElementById('btnViewTable').addEventListener('click', () => {
 });
 document.getElementById('btnViewMap').addEventListener('click', () => {
   state.view = 'map'; save(); render();
+});
+document.getElementById('btnViewSearch').addEventListener('click', () => {
+  state.view = 'search'; save(); render();
 });
 
 /* ---------- theme (claro/oscuro) ---------- */
