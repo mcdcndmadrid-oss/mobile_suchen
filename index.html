@@ -327,20 +327,19 @@
   table.search-table tr:hover td { background: var(--surface-2); }
   table.search-table td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
   table.search-table td.title-cell { white-space: normal; max-width: 260px; font-weight: 600; }
-  table.search-table td.rating-cell.good { color: var(--good-text); font-weight: 600; }
-  table.search-table td.rating-cell.warn { color: var(--warn-text); font-weight: 600; }
-  table.search-table td.rating-cell.bad { color: var(--bad-text); font-weight: 600; }
+  table.search-table td.rating-cell { font-weight: 600; }
   table.search-table button.danger { padding: 4px 8px; font-size: 11px; }
 
   .search-map { height: 480px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin: 4px 0 14px; }
   .map-pin-popup { font: 13px var(--font-body); line-height: 1.4; }
   .map-pin-popup strong { font-family: var(--font-display); }
   .map-legend {
-    display: flex; gap: 14px; align-items: center; font-size: 12px; color: var(--ink-soft);
+    display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; color: var(--ink-soft);
     margin: 4px 0 14px;
   }
   .map-legend span { display: flex; align-items: center; gap: 5px; }
   .map-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .map-legend i.ring { background: transparent; box-shadow: inset 0 0 0 2px var(--ink); }
 
   /* Cards view */
   .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 32px; }
@@ -359,7 +358,7 @@
   .car-card .meta-line { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-soft); }
   .car-card .price-row { display: flex; align-items: baseline; justify-content: space-between; }
   .car-card .price { font: 600 24px var(--font-mono); letter-spacing: -.01em; }
-  .car-card .rating-label { font-size: 11.5px; font-weight: 600; color: var(--good-text); margin-top: 2px; }
+  .car-card .rating-label { font-size: 11.5px; font-weight: 600; margin-top: 2px; }
   .car-card .score-block { text-align: right; }
   .car-card .specs {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; font-size: 12.5px;
@@ -396,6 +395,7 @@
       <div class="view-toggle">
         <button id="btnViewCards" class="active">Tarjetas</button>
         <button id="btnViewTable">Tabla</button>
+        <button id="btnViewMap">Mapa</button>
       </div>
       <button id="btnTheme" title="Cambiar tema"></button>
       <button id="btnPrefs">Preferencias</button>
@@ -487,30 +487,29 @@
   </section>
 
   <section class="panel" id="searchResultsPanel" hidden>
-    <div class="row-actions" style="justify-content:space-between;margin-top:0">
-      <div>
-        <p class="eyebrow" style="margin-bottom:2px">Resultados de búsqueda</p>
-        <p class="hint" style="margin:0">Vista rápida sin puntuar, solo con los datos básicos. Ábrelos y vuelve a capturarlos individualmente si quieres compararlos a fondo.</p>
-      </div>
-      <div class="view-toggle">
-        <button id="btnSearchViewTable" class="active" onclick="setSearchView('table')">Tabla</button>
-        <button id="btnSearchViewMap" onclick="setSearchView('map')">Mapa</button>
-      </div>
-    </div>
-    <div id="searchMapLegend" class="map-legend" hidden>
-      <span><i style="background:var(--good)"></i> Buen precio</span>
-      <span><i style="background:var(--warn)"></i> Precio razonable</span>
-      <span><i style="background:var(--bad)"></i> Precio elevado</span>
-    </div>
+    <p class="eyebrow">Resultados de búsqueda</p>
+    <p class="hint">Vista rápida sin puntuar, solo con los datos básicos. Ábrelos y vuelve a capturarlos individualmente si quieres compararlos a fondo. Pulsa una cabecera para ordenar.</p>
     <div id="searchTableArea"></div>
-    <div id="searchMapArea" class="search-map" hidden></div>
     <div class="row-actions">
+      <button onclick="exportSearchCsv()">Exportar como CSV</button>
       <button class="danger" onclick="clearSearchResults()">Vaciar resultados de búsqueda</button>
     </div>
   </section>
 
   <div id="cardsArea"></div>
   <div id="tableArea" hidden></div>
+  <div id="mapArea" hidden>
+    <div class="map-legend">
+      <span><i style="background:#1e9e4a"></i> Muy buen precio</span>
+      <span><i style="background:#7cb518"></i> Buen precio</span>
+      <span><i style="background:#e0a821"></i> Precio razonable</span>
+      <span><i style="background:#e07b21"></i> Precio algo elevado</span>
+      <span><i style="background:#d94f2b"></i> Precio alto</span>
+      <span><i style="background:#b8231f"></i> Precio muy alto</span>
+      <span><i class="ring"></i> En tu comparador (con ficha)</span>
+    </div>
+    <div id="mapCanvas" class="search-map"></div>
+  </div>
 
   <section class="panel" id="recPanel" hidden>
     <p class="eyebrow">Recomendaciones</p>
@@ -577,7 +576,7 @@ function load() {
   } catch (e) { /* corrupted -> start fresh */ }
   s.prefs = mergePrefs(s.prefs);
   s.columns = Object.assign(defaultColumns(), s.columns || {});
-  s.view = s.view === 'table' ? 'table' : 'cards';
+  s.view = ['table', 'map'].includes(s.view) ? s.view : 'cards';
   return s;
 }
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -879,6 +878,34 @@ const PRICE_RATING_MAP = {
   INCREASED_PRICE: { v: 0, cls: 'bad' }, HIGH_PRICE: { v: 0, cls: 'bad' }, VERY_HIGH_PRICE: { v: 0, cls: 'bad' }
 };
 
+// mobile.de valora el precio en 6 niveles; el scoring general (PRICE_RATING_MAP de arriba)
+// los agrupa en 3 a propósito, pero para MOSTRAR la valoración (tabla, tarjetas, resultados
+// de búsqueda) sí interesa distinguir los 6, p.ej. "muy buen precio" de "buen precio".
+// Colores adaptados a tema claro/oscuro (a diferencia de PRICE_RATING_COLORS del mapa,
+// que son fijos porque van sobre las teselas).
+const PRICE_RATING_PALETTE = {
+  light: {
+    VERY_GOOD_PRICE: { text: 'oklch(38% 0.13 145)', bg: 'oklch(92% 0.07 145)' },
+    GOOD_PRICE: { text: 'oklch(40% 0.11 120)', bg: 'oklch(93% 0.07 120)' },
+    REASONABLE_PRICE: { text: 'oklch(45% 0.12 80)', bg: 'oklch(96% 0.04 80)' },
+    INCREASED_PRICE: { text: 'oklch(45% 0.14 50)', bg: 'oklch(94% 0.06 50)' },
+    HIGH_PRICE: { text: 'oklch(42% 0.16 25)', bg: 'oklch(93% 0.06 25)' },
+    VERY_HIGH_PRICE: { text: 'oklch(35% 0.16 15)', bg: 'oklch(91% 0.07 15)' }
+  },
+  dark: {
+    VERY_GOOD_PRICE: { text: 'oklch(82% 0.15 145)', bg: 'oklch(28% 0.06 145)' },
+    GOOD_PRICE: { text: 'oklch(80% 0.13 120)', bg: 'oklch(28% 0.06 120)' },
+    REASONABLE_PRICE: { text: 'oklch(82% 0.14 80)', bg: 'oklch(30% 0.05 80)' },
+    INCREASED_PRICE: { text: 'oklch(78% 0.15 50)', bg: 'oklch(30% 0.06 50)' },
+    HIGH_PRICE: { text: 'oklch(76% 0.16 25)', bg: 'oklch(30% 0.07 25)' },
+    VERY_HIGH_PRICE: { text: 'oklch(70% 0.17 15)', bg: 'oklch(28% 0.07 15)' }
+  }
+};
+function priceRatingColors(rating) {
+  if (!rating) return null;
+  return PRICE_RATING_PALETTE[effectiveTheme()][rating] || null;
+}
+
 // mobile.de devuelve estos valores en el idioma de cada web (alemán, español...);
 // se normalizan a un código para que las preferencias funcionen igual sea cual sea el origen del anuncio.
 const TRANSMISSION_CODES = {
@@ -955,6 +982,58 @@ function estimateTravelTimeFromMadridHours(location) {
   const lower = location.toLowerCase();
   if (/españa|espana/.test(lower)) return COUNTRY_HOURS.ES;
   if (/alemania|deutschland/.test(lower)) return COUNTRY_HOURS.DE;
+  return null;
+}
+
+// Coordenadas aproximadas (a nivel de ciudad, no exactas) para poder pintar en el mapa
+// anuncios que solo traen dirección de texto (los capturados individualmente no incluyen
+// lat/lon real, a diferencia de los resultados de búsqueda). El prefijo de 2 dígitos del
+// código postal alemán ya identifica una zona/ciudad concreta con suficiente precisión.
+const GERMAN_PLZ2_COORDS = {
+  '00': [51.05, 13.74], '01': [51.05, 13.74], '02': [51.18, 14.42], '03': [51.76, 14.33],
+  '04': [51.34, 12.37], '06': [51.48, 11.97], '07': [50.93, 11.59], '08': [50.72, 12.49],
+  '09': [50.83, 12.92], '10': [52.52, 13.40], '11': [52.52, 13.40], '12': [52.52, 13.40],
+  '13': [52.55, 13.35], '14': [52.40, 13.06], '15': [52.35, 14.55], '16': [52.85, 13.80],
+  '17': [53.56, 13.26], '18': [54.09, 12.13], '19': [53.63, 11.42], '20': [53.55, 9.99],
+  '21': [53.47, 10.10], '22': [53.60, 10.05], '23': [53.87, 10.68], '24': [54.32, 10.14],
+  '25': [53.92, 9.52], '26': [53.14, 8.21], '27': [53.54, 8.58], '28': [53.08, 8.81],
+  '29': [52.62, 10.08], '30': [52.37, 9.73], '31': [52.20, 9.55], '32': [52.11, 8.68],
+  '33': [52.02, 8.53], '34': [51.31, 9.49], '35': [50.58, 8.68], '36': [50.55, 9.68],
+  '37': [51.53, 9.93], '38': [52.27, 10.52], '39': [52.13, 11.63], '40': [51.22, 6.78],
+  '41': [51.20, 6.44], '42': [51.27, 7.20], '44': [51.48, 7.22], '45': [51.46, 7.02],
+  '46': [51.53, 6.87], '47': [51.43, 6.76], '48': [51.96, 7.63], '49': [52.28, 8.05],
+  '50': [50.94, 6.96], '51': [50.94, 7.10], '52': [50.78, 6.08], '53': [50.74, 7.10],
+  '54': [49.75, 6.64], '55': [49.99, 8.27], '56': [50.35, 7.59], '57': [50.87, 8.02],
+  '58': [51.36, 7.47], '59': [51.68, 7.82], '60': [50.11, 8.68], '61': [50.15, 8.75],
+  '63': [50.11, 8.95], '64': [49.87, 8.65], '65': [50.08, 8.24], '66': [49.23, 7.00],
+  '67': [49.44, 8.30], '68': [49.49, 8.47], '69': [49.40, 8.69], '70': [48.78, 9.18],
+  '71': [48.78, 9.30], '72': [48.49, 9.05], '73': [48.65, 9.65], '74': [49.14, 9.22],
+  '75': [48.89, 8.70], '76': [49.01, 8.40], '77': [48.47, 7.94], '78': [47.66, 9.18],
+  '79': [47.99, 7.85], '80': [48.14, 11.58], '81': [48.14, 11.58], '82': [47.98, 11.34],
+  '83': [47.86, 12.12], '84': [48.54, 12.15], '85': [48.51, 11.52], '86': [48.37, 10.90],
+  '87': [47.73, 10.31], '88': [47.78, 9.61], '89': [48.40, 9.99], '90': [49.45, 11.08],
+  '91': [49.60, 11.01], '92': [49.44, 11.85], '93': [49.02, 12.10], '94': [48.88, 12.57],
+  '95': [49.95, 11.58], '96': [50.26, 10.97], '97': [49.79, 9.95], '98': [50.61, 10.69],
+  '99': [50.98, 11.03]
+};
+const COUNTRY_COORDS = {
+  ES: [40.0, -3.7], PT: [39.5, -8.0], FR: [46.6, 2.5], IT: [42.5, 12.5],
+  NL: [52.1, 5.3], BE: [50.6, 4.5], AT: [47.5, 14.5], CH: [46.8, 8.2],
+  LU: [49.8, 6.1], PL: [52.0, 19.0], GB: [54.0, -2.5], UK: [54.0, -2.5], DE: [51.0, 10.0]
+};
+function estimateApproxCoords(location) {
+  if (!location) return null;
+  const m = location.match(/\b([A-Z]{2})-(\d{5})\b/);
+  if (m) {
+    const [, country, plz] = m;
+    if (country === 'DE') return GERMAN_PLZ2_COORDS[plz.slice(0, 2)] || COUNTRY_COORDS.DE;
+    if (COUNTRY_COORDS[country]) return COUNTRY_COORDS[country];
+  }
+  const m2 = location.match(/\b([A-Z]{2})-\d{4,5}\b|\b([A-Z]{2})\d{4,5}\b/);
+  if (m2) { const c = m2[1] || m2[2]; if (COUNTRY_COORDS[c]) return COUNTRY_COORDS[c]; }
+  const lower = location.toLowerCase();
+  if (/españa|espana/.test(lower)) return COUNTRY_COORDS.ES;
+  if (/alemania|deutschland/.test(lower)) return COUNTRY_COORDS.DE;
   return null;
 }
 
@@ -1133,17 +1212,21 @@ function render() {
   applyViewToggle();
   renderCriteriaChips();
   renderSearchResults();
-  if (state.view === 'table') renderTable(); else renderCards();
+  if (state.view === 'table') renderTable();
+  else if (state.view === 'map') renderMap();
+  else renderCards();
   renderRecs();
   renderPrefs();
 }
 
 function applyViewToggle() {
-  const isCards = state.view !== 'table';
-  document.getElementById('cardsArea').hidden = !isCards;
-  document.getElementById('tableArea').hidden = isCards;
-  document.getElementById('btnViewCards').classList.toggle('active', isCards);
-  document.getElementById('btnViewTable').classList.toggle('active', !isCards);
+  const v = state.view;
+  document.getElementById('cardsArea').hidden = v !== 'cards';
+  document.getElementById('tableArea').hidden = v !== 'table';
+  document.getElementById('mapArea').hidden = v !== 'map';
+  document.getElementById('btnViewCards').classList.toggle('active', v === 'cards');
+  document.getElementById('btnViewTable').classList.toggle('active', v === 'table');
+  document.getElementById('btnViewMap').classList.toggle('active', v === 'map');
 }
 
 function renderCriteriaChips() {
@@ -1189,17 +1272,10 @@ const SEARCH_COLS = [
   { label: 'Vendedor', key: 'seller', type: 'str', get: ad => ad.sellerName }
 ];
 let searchSort = { key: null, dir: 1 };
-let searchView = 'table';
-let searchMapInstance = null;
 
 function sortSearchTable(key) {
   if (searchSort.key === key) searchSort.dir *= -1;
   else { searchSort.key = key; searchSort.dir = 1; }
-  renderSearchResults();
-}
-
-function setSearchView(view) {
-  searchView = view;
   renderSearchResults();
 }
 
@@ -1208,33 +1284,27 @@ function renderSearchResults() {
   const ads = state.ads.filter(a => a.fromSearch);
   if (!ads.length) { panel.hidden = true; return; }
   panel.hidden = false;
+  renderSearchTable(ads);
+}
 
-  const isMap = searchView === 'map';
-  document.getElementById('searchTableArea').hidden = isMap;
-  document.getElementById('searchMapArea').hidden = !isMap;
-  document.getElementById('searchMapLegend').hidden = !isMap;
-  document.getElementById('btnSearchViewTable').classList.toggle('active', !isMap);
-  document.getElementById('btnSearchViewMap').classList.toggle('active', isMap);
-
-  if (isMap) renderSearchMap(ads); else renderSearchTable(ads);
+function sortedSearchAds(ads) {
+  if (!searchSort.key) return ads;
+  const col = SEARCH_COLS.find(c => c.key === searchSort.key);
+  return ads.slice().sort((a, b) => {
+    const va = col.get(a), vb = col.get(b);
+    if (va === null || va === undefined) return 1;
+    if (vb === null || vb === undefined) return -1;
+    const cmp = col.type === 'num' ? (va - vb) : String(va).localeCompare(String(vb), 'es');
+    return cmp * searchSort.dir;
+  });
 }
 
 function renderSearchTable(ads) {
-  let list = ads;
-  if (searchSort.key) {
-    const col = SEARCH_COLS.find(c => c.key === searchSort.key);
-    list = ads.slice().sort((a, b) => {
-      const va = col.get(a), vb = col.get(b);
-      if (va === null || va === undefined) return 1;
-      if (vb === null || vb === undefined) return -1;
-      const cmp = col.type === 'num' ? (va - vb) : String(va).localeCompare(String(vb), 'es');
-      return cmp * searchSort.dir;
-    });
-  }
+  const list = sortedSearchAds(ads);
 
-  const ratingCls = ad => {
-    if (!ad.priceRating || !PRICE_RATING_MAP[ad.priceRating.rating]) return '';
-    return PRICE_RATING_MAP[ad.priceRating.rating].cls;
+  const ratingStyle = ad => {
+    const c = ad.priceRating && priceRatingColors(ad.priceRating.rating);
+    return c ? ' style="color:' + c.text + '"' : '';
   };
 
   let h = '<div class="search-table-wrap"><table class="search-table"><thead><tr>' +
@@ -1248,7 +1318,7 @@ function renderSearchTable(ads) {
     h += '<tr>' +
       '<td class="title-cell">' + (ad.url ? '<a href="' + esc(ad.url) + '" target="_blank" rel="noopener">' + esc(ad.title) + '</a>' : esc(ad.title)) + '</td>' +
       '<td class="num">' + (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') + '</td>' +
-      '<td class="rating-cell ' + ratingCls(ad) + '">' + (ad.priceRating ? esc(ad.priceRating.label) : '—') + '</td>' +
+      '<td class="rating-cell"' + ratingStyle(ad) + '>' + (ad.priceRating ? esc(ad.priceRating.label) : '—') + '</td>' +
       '<td class="num">' + (regYear(ad) ?? '—') + '</td>' +
       '<td class="num">' + (ad.mileageKm !== null && ad.mileageKm !== undefined ? fmtInt.format(ad.mileageKm) : '—') + '</td>' +
       '<td class="num">' + (ad.powerPs ?? '—') + '</td>' +
@@ -1263,49 +1333,108 @@ function renderSearchTable(ads) {
   document.getElementById('searchTableArea').innerHTML = h;
 }
 
-// Mapa con Leaflet/OpenStreetMap (CDN): un punto por anuncio con coordenadas conocidas,
-// coloreado según la valoración de precio de mobile.de (mismo criterio good/warn/bad
-// que el resto de la app, leído directamente de las variables CSS del tema activo).
-function renderSearchMap(ads) {
-  const area = document.getElementById('searchMapArea');
+// Mapa con Leaflet/OpenStreetMap (CDN): un punto por coche, coloreado según la valoración
+// de precio de mobile.de (mismo criterio good/warn/bad del resto de la app, leído de las
+// variables CSS del tema activo). Los resultados de búsqueda traen coordenadas reales de
+// mobile.de; los anuncios ya capturados en el comparador no las traen, así que se estima
+// una posición a nivel de ciudad/código postal (estimateApproxCoords) — el usuario no
+// necesita precisión exacta, solo ver "por dónde" cae cada coche. Los del comparador
+// (con ficha completa) se marcan con un anillo más grueso para distinguirlos a simple vista.
+let mapInstance = null;
+
+// mobile.de valora el precio en 6 niveles, pero el resto de la app solo distingue
+// bueno/normal/malo (3 colores) para el scoring general. En el mapa sí interesa
+// diferenciar los 6, así que aquí se usa un degradado propio verde→rojo.
+const PRICE_RATING_COLORS = {
+  VERY_GOOD_PRICE: '#1e9e4a',
+  GOOD_PRICE: '#7cb518',
+  REASONABLE_PRICE: '#e0a821',
+  INCREASED_PRICE: '#e07b21',
+  HIGH_PRICE: '#d94f2b',
+  VERY_HIGH_PRICE: '#b8231f'
+};
+
+function renderMap() {
+  const area = document.getElementById('mapCanvas');
   if (typeof L === 'undefined') {
     area.innerHTML = '<p class="hint" style="padding:16px">No se pudo cargar el mapa (sin conexión a la librería externa).</p>';
     return;
   }
-  const withCoords = ads.filter(a => a.lat !== null && a.lat !== undefined && a.lon !== null && a.lon !== undefined);
 
-  if (!searchMapInstance) {
-    searchMapInstance = L.map(area).setView([50.1, 10.4], 5);
+  if (!mapInstance) {
+    mapInstance = L.map(area).setView([50.1, 10.4], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 18
-    }).addTo(searchMapInstance);
-    searchMapInstance.__layer = L.layerGroup().addTo(searchMapInstance);
+    }).addTo(mapInstance);
+    mapInstance.__layer = L.layerGroup().addTo(mapInstance);
   }
-  searchMapInstance.__layer.clearLayers();
+  mapInstance.__layer.clearLayers();
 
   const colorFor = ad => {
-    const cls = (ad.priceRating && PRICE_RATING_MAP[ad.priceRating.rating]) ? PRICE_RATING_MAP[ad.priceRating.rating].cls : null;
-    const varName = cls ? '--' + cls : '--ink-soft';
-    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    if (ad.priceRating && PRICE_RATING_COLORS[ad.priceRating.rating]) return PRICE_RATING_COLORS[ad.priceRating.rating];
+    return getComputedStyle(document.documentElement).getPropertyValue('--ink-soft').trim();
   };
+  const coordsOf = ad => (ad.lat !== null && ad.lat !== undefined && ad.lon !== null && ad.lon !== undefined)
+    ? [ad.lat, ad.lon] : estimateApproxCoords(ad.location);
 
   const bounds = [];
-  withCoords.forEach(ad => {
-    const marker = L.circleMarker([ad.lat, ad.lon], {
-      radius: 8, color: '#fff', weight: 1.5, fillColor: colorFor(ad), fillOpacity: 0.9
-    }).addTo(searchMapInstance.__layer);
+
+  for (const ad of state.ads.filter(a => a.fromSearch)) {
+    const c = coordsOf(ad);
+    if (!c) continue;
+    const marker = L.circleMarker(c, { radius: 7, color: '#fff', weight: 1.5, fillColor: colorFor(ad), fillOpacity: 0.9 }).addTo(mapInstance.__layer);
     marker.bindPopup(
       '<div class="map-pin-popup"><strong>' + esc(ad.title) + '</strong><br>' +
       (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') +
       (ad.priceRating ? ' · ' + esc(ad.priceRating.label) : '') + '</div>'
     );
-    bounds.push([ad.lat, ad.lon]);
-  });
+    bounds.push(c);
+  }
+
+  for (const r of evalAll()) {
+    const ad = r.ad, ev = r.ev;
+    const c = coordsOf(ad);
+    if (!c) continue;
+    const marker = L.circleMarker(c, { radius: 10, color: getComputedStyle(document.documentElement).getPropertyValue('--ink').trim(), weight: 3, fillColor: colorFor(ad), fillOpacity: 0.95 }).addTo(mapInstance.__layer);
+    marker.bindPopup(
+      '<div class="map-pin-popup">' +
+      (ad.imageUrl ? '<img src="' + esc(ad.imageUrl) + '" alt="" referrerpolicy="no-referrer" style="width:100%;max-width:220px;height:110px;object-fit:cover;border-radius:6px;margin-bottom:6px" onerror="this.remove()">' : '') +
+      '<strong>' + esc(ad.title) + '</strong><br>' +
+      (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') +
+      ' · <strong>' + (ev.score ?? '—') + '/100</strong><br>' +
+      [regYear(ad), ad.mileageKm != null ? fmtInt.format(ad.mileageKm) + ' km' : null, ad.powerPs ? ad.powerPs + ' CV' : null].filter(Boolean).join(' · ') +
+      (ad.url ? '<br><a href="' + esc(ad.url) + '" target="_blank" rel="noopener">Ver anuncio ↗</a>' : '') +
+      '</div>'
+    );
+    bounds.push(c);
+  }
 
   setTimeout(() => {
-    searchMapInstance.invalidateSize();
-    if (bounds.length) searchMapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
+    mapInstance.invalidateSize();
+    if (bounds.length) mapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
   }, 50);
+}
+
+function csvEscape(v) {
+  const s = v === null || v === undefined ? '' : String(v);
+  return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportSearchCsv() {
+  const ads = sortedSearchAds(state.ads.filter(a => a.fromSearch));
+  if (!ads.length) return;
+  const headers = ['Modelo', 'Precio', 'Valoración', 'Año', 'Km', 'Potencia', 'Combustible', 'Cambio', 'Ubicación', 'Vendedor', 'URL'];
+  const rows = ads.map(ad => [
+    ad.title, ad.priceGross, ad.priceRating ? ad.priceRating.label : '', regYear(ad), ad.mileageKm,
+    ad.powerPs, ad.fuel, ad.transmission, ad.location, ad.sellerName, ad.url
+  ].map(csvEscape).join(';'));
+  const csv = '﻿' + headers.map(csvEscape).join(';') + '\n' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'resultados-busqueda-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function clearSearchResults() {
@@ -1319,7 +1448,10 @@ function clearSearchResults() {
 /* ---------- comparison table row definitions ---------- */
 const ROW_DEFS = [
   { id: 'price', label: 'Precio', key: 'priceGross', numeric: true, fn: ad => ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—' },
-  { id: 'priceRating', label: 'Valoración mobile.de', key: 'priceRating', fn: ad => ad.priceRating ? esc(ad.priceRating.label) : '—' },
+  {
+    id: 'priceRating', label: 'Valoración mobile.de', key: 'priceRating', fn: ad => ad.priceRating ? esc(ad.priceRating.label) : '—',
+    styleFn: ad => { const c = ad.priceRating && priceRatingColors(ad.priceRating.rating); return c ? 'background:' + c.bg + ';color:' + c.text : null; }
+  },
   { id: 'regYear', label: 'Matriculación', key: 'regYear', fn: ad => esc(ad.firstRegistration) },
   { id: 'mileage', label: 'Kilómetros', key: 'mileageKm', numeric: true, fn: ad => ad.mileageKm !== null && ad.mileageKm !== undefined ? fmtInt.format(ad.mileageKm) + ' km' : '—' },
   { id: 'power', label: 'Potencia', key: 'powerPs', numeric: true, fn: ad => ad.powerPs ? fmtInt.format(ad.powerPs) + ' CV' : '—' },
@@ -1419,7 +1551,7 @@ function renderCards() {
       (ad.fromSearch ? ' · <span title="Datos resumidos desde la búsqueda; abre el anuncio para el detalle completo">Búsqueda</span>' : '') + '</p></div>' +
       '<div class="price-row">' +
       '<div><span class="price">' + (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') + '</span>' +
-      (ad.priceRating ? '<div class="rating-label">' + esc(ad.priceRating.label) + '</div>' : '') +
+      (ad.priceRating ? '<div class="rating-label"' + (priceRatingColors(ad.priceRating.rating) ? ' style="color:' + priceRatingColors(ad.priceRating.rating).text + '"' : '') + '>' + esc(ad.priceRating.label) + '</div>' : '') +
       '</div>' +
       '<div class="score-block"><span class="score-num">' + (ev.score ?? '—') + '<small> /100</small></span>' +
       '<div class="score-bar"><i style="width:' + (ev.score || 0) + '%;background:' + barColor + '"></i></div></div>' +
@@ -1709,6 +1841,9 @@ document.getElementById('btnViewCards').addEventListener('click', () => {
 });
 document.getElementById('btnViewTable').addEventListener('click', () => {
   state.view = 'table'; save(); render();
+});
+document.getElementById('btnViewMap').addEventListener('click', () => {
+  state.view = 'map'; save(); render();
 });
 
 /* ---------- theme (claro/oscuro) ---------- */
