@@ -167,6 +167,14 @@
     outline: 2px solid var(--accent-bright); outline-offset: 2px;
   }
 
+  /* Aviso de catálogo publicado con anuncios nuevos que aún no están en local */
+  .sync-notice {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+    padding: 14px 20px; background: var(--warn-bg); border: 1px solid var(--warn);
+    border-radius: 10px; margin-bottom: 22px; font-size: 13.5px; color: var(--warn-text);
+  }
+  .sync-notice[hidden] { display: none; }
+
   /* Criteria summary bar */
   .criteria-bar {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -425,6 +433,14 @@
       <button id="btnAdd" class="primary">+ Añadir anuncio</button>
     </div>
   </div>
+
+  <section class="sync-notice" id="syncNotice" hidden>
+    <span id="syncNoticeText"></span>
+    <div class="row-actions" style="margin:0">
+      <button class="primary" onclick="addPendingSharedAds()">Añadir</button>
+      <button onclick="dismissSyncNotice()">Ignorar</button>
+    </div>
+  </section>
 
   <section class="criteria-bar" id="criteriaBar" hidden>
     <span class="criteria-label">Tus criterios</span>
@@ -2147,11 +2163,42 @@ function applySharedSnapshot(snap) {
   render();
 }
 
+// Un visitante que ya tiene datos propios en su navegador (localStorage no vacío) nunca
+// vuelve a mirar cars.json por sí solo, así que si alguien publica anuncios nuevos (p.ej.
+// resultados de búsqueda) esa persona no los vería nunca sin este aviso. En vez de fusionar
+// solo, se pregunta: puede haber querido quitar a propósito algún anuncio que sigue en el
+// archivo publicado, y forzarlo de vuelta sin avisar sería confuso.
+let pendingSharedAds = [];
+async function checkForSharedUpdates() {
+  const snap = await loadSharedSnapshot();
+  if (!snap) return;
+  const knownIds = new Set(state.ads.map(a => String(a.id)));
+  pendingSharedAds = snap.ads.filter(a => !knownIds.has(String(a.id)));
+  if (!pendingSharedAds.length) return;
+  const notice = document.getElementById('syncNotice');
+  document.getElementById('syncNoticeText').textContent =
+    'Hay ' + pendingSharedAds.length + ' ' + (pendingSharedAds.length === 1 ? 'anuncio nuevo' : 'anuncios nuevos') + ' en el catálogo publicado (cars.json) que no tienes todavía.';
+  notice.hidden = false;
+}
+function addPendingSharedAds() {
+  state.ads = state.ads.concat(pendingSharedAds);
+  pendingSharedAds = [];
+  document.getElementById('syncNotice').hidden = true;
+  save();
+  render();
+}
+function dismissSyncNotice() {
+  pendingSharedAds = [];
+  document.getElementById('syncNotice').hidden = true;
+}
+
 (async () => {
   state = load();
   if (!localStorage.getItem(LS_KEY)) {
     const snap = await loadSharedSnapshot();
     if (snap) applySharedSnapshot(snap);
+  } else {
+    checkForSharedUpdates();
   }
   if (!state.ads.length) document.getElementById('addPanel').hidden = false;
   render();
