@@ -329,6 +329,18 @@
   table.search-table td.title-cell { white-space: normal; max-width: 260px; font-weight: 600; }
   table.search-table td.rating-cell { font-weight: 600; }
   table.search-table button.danger { padding: 4px 8px; font-size: 11px; }
+  table.search-table tr.filter-row th {
+    padding: 6px 8px; font-weight: 400; text-transform: none; letter-spacing: normal;
+    background: var(--surface); border-bottom: 2px solid var(--line);
+  }
+  table.search-table tr.filter-row input, table.search-table tr.filter-row select {
+    width: 100%; font: 12px var(--font-body); padding: 5px 6px; box-sizing: border-box;
+    background: var(--surface-3); color: var(--ink); border: 1px solid var(--line-input); border-radius: 5px;
+  }
+  table.search-table .filter-range { display: flex; gap: 4px; }
+  table.search-table .filter-range input { width: 62px; font-variant-numeric: tabular-nums; }
+  table.search-table td.filter-empty { text-align: center; color: var(--ink-soft); padding: 20px; white-space: normal; }
+  .filter-status { margin: 0 0 8px; }
 
   .search-map { height: calc(100vh - 160px); min-height: 480px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin: 4px 0 14px; }
   .map-pin-popup { font: 13px var(--font-body); line-height: 1.4; }
@@ -1268,23 +1280,86 @@ const PRICE_RATING_RANK = {
 
 /* ---------- tabla compacta de resultados de búsqueda (sin puntuar) ---------- */
 const SEARCH_COLS = [
-  { label: 'Modelo', key: 'title', type: 'str', get: ad => ad.title },
-  { label: 'Precio', key: 'price', type: 'num', get: ad => ad.priceGross },
-  { label: 'Valoración', key: 'rating', type: 'num', get: ad => (ad.priceRating && PRICE_RATING_RANK[ad.priceRating.rating] !== undefined) ? PRICE_RATING_RANK[ad.priceRating.rating] : null },
-  { label: 'Año', key: 'year', type: 'num', get: ad => regYear(ad) },
-  { label: 'Km', key: 'km', type: 'num', get: ad => ad.mileageKm },
-  { label: 'Potencia', key: 'power', type: 'num', get: ad => ad.powerPs },
-  { label: 'Combustible', key: 'fuel', type: 'str', get: ad => ad.fuel },
-  { label: 'Cambio', key: 'transmission', type: 'str', get: ad => ad.transmission },
-  { label: 'Ubicación', key: 'location', type: 'num', get: ad => estimateTravelTimeFromMadridHours(ad.location) },
-  { label: 'Vendedor', key: 'seller', type: 'str', get: ad => ad.sellerName }
+  { label: 'Modelo', key: 'title', type: 'str', filter: 'text', get: ad => ad.title },
+  { label: 'Precio', key: 'price', type: 'num', filter: 'range', get: ad => ad.priceGross },
+  { label: 'Valoración', key: 'rating', type: 'num', filter: 'select', get: ad => (ad.priceRating && PRICE_RATING_RANK[ad.priceRating.rating] !== undefined) ? PRICE_RATING_RANK[ad.priceRating.rating] : null },
+  { label: 'Año', key: 'year', type: 'num', filter: 'range', get: ad => regYear(ad) },
+  { label: 'Km', key: 'km', type: 'num', filter: 'range', get: ad => ad.mileageKm },
+  { label: 'Potencia', key: 'power', type: 'num', filter: 'range', get: ad => ad.powerPs },
+  { label: 'Combustible', key: 'fuel', type: 'str', filter: 'text', get: ad => ad.fuel },
+  { label: 'Cambio', key: 'transmission', type: 'str', filter: 'text', get: ad => ad.transmission },
+  { label: 'Ubicación', key: 'location', type: 'num', filter: 'text', get: ad => estimateTravelTimeFromMadridHours(ad.location) },
+  { label: 'Vendedor', key: 'seller', type: 'str', filter: 'text', get: ad => ad.sellerName }
 ];
+const PRICE_RATING_LABELS = {
+  VERY_GOOD_PRICE: 'Muy buen precio', GOOD_PRICE: 'Buen precio', REASONABLE_PRICE: 'Precio razonable',
+  INCREASED_PRICE: 'Precio algo elevado', HIGH_PRICE: 'Precio alto', VERY_HIGH_PRICE: 'Precio muy alto'
+};
 let searchSort = { key: null, dir: 1 };
+let searchFilters = { title: '', fuel: '', transmission: '', location: '', seller: '', rating: '', price: {}, year: {}, km: {}, power: {} };
 
 function sortSearchTable(key) {
   if (searchSort.key === key) searchSort.dir *= -1;
   else { searchSort.key = key; searchSort.dir = 1; }
   renderSearchResults();
+}
+
+// Los filtros se aplican al escribir (evento input); como cada tecla reconstruye la
+// tabla entera, hay que restaurar el foco y la posición del cursor a mano o el usuario
+// perdería el foco del campo después de cada carácter.
+function updateSearchFilter(key, value) {
+  searchFilters[key] = value;
+  applySearchFilterChange();
+}
+function updateSearchFilterRange(key, bound, value) {
+  searchFilters[key] = Object.assign({}, searchFilters[key]);
+  searchFilters[key][bound] = value === '' ? null : parseFloat(value);
+  applySearchFilterChange();
+}
+function applySearchFilterChange() {
+  const active = document.activeElement;
+  const id = active && active.id;
+  const selStart = active && typeof active.selectionStart === 'number' ? active.selectionStart : null;
+  const selEnd = active && typeof active.selectionEnd === 'number' ? active.selectionEnd : null;
+  renderSearchResults();
+  if (id) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.focus();
+      if (selStart !== null && el.setSelectionRange) { try { el.setSelectionRange(selStart, selEnd); } catch (e) { /* type=number no lo soporta */ } }
+    }
+  }
+}
+function clearSearchFilters() {
+  searchFilters = { title: '', fuel: '', transmission: '', location: '', seller: '', rating: '', price: {}, year: {}, km: {}, power: {} };
+  renderSearchResults();
+}
+function hasActiveSearchFilters() {
+  const f = searchFilters;
+  return !!(f.title || f.fuel || f.transmission || f.location || f.seller || f.rating ||
+    f.price.min != null || f.price.max != null || f.year.min != null || f.year.max != null ||
+    f.km.min != null || f.km.max != null || f.power.min != null || f.power.max != null);
+}
+function inRange(val, range) {
+  if (!range) return true;
+  if (range.min != null && (val === null || val === undefined || val < range.min)) return false;
+  if (range.max != null && (val === null || val === undefined || val > range.max)) return false;
+  return true;
+}
+function adMatchesSearchFilters(ad) {
+  const f = searchFilters;
+  const contains = (val, needle) => !needle || (val || '').toLowerCase().includes(needle.toLowerCase());
+  if (!contains(ad.title, f.title)) return false;
+  if (!contains(ad.fuel, f.fuel)) return false;
+  if (!contains(ad.transmission, f.transmission)) return false;
+  if (!contains(ad.location, f.location)) return false;
+  if (!contains(ad.sellerName, f.seller)) return false;
+  if (f.rating && (!ad.priceRating || ad.priceRating.rating !== f.rating)) return false;
+  if (!inRange(ad.priceGross, f.price)) return false;
+  if (!inRange(regYear(ad), f.year)) return false;
+  if (!inRange(ad.mileageKm, f.km)) return false;
+  if (!inRange(ad.powerPs, f.power)) return false;
+  return true;
 }
 
 function renderSearchResults() {
@@ -1308,11 +1383,29 @@ function sortedSearchAds(ads) {
 }
 
 function renderSearchTable(ads) {
-  const list = sortedSearchAds(ads);
+  const filtered = ads.filter(adMatchesSearchFilters);
+  const list = sortedSearchAds(filtered);
 
   const ratingStyle = ad => {
     const c = ad.priceRating && priceRatingColors(ad.priceRating.rating);
     return c ? ' style="color:' + c.text + '"' : '';
+  };
+
+  const filterCell = c => {
+    if (c.filter === 'select') {
+      const opts = ['<option value="">Todas</option>'].concat(
+        Object.keys(PRICE_RATING_RANK).map(k => '<option value="' + k + '"' + (searchFilters.rating === k ? ' selected' : '') + '>' + PRICE_RATING_LABELS[k] + '</option>')
+      );
+      return '<select id="flt_' + c.key + '" onchange="updateSearchFilter(\'' + c.key + '\', this.value)">' + opts.join('') + '</select>';
+    }
+    if (c.filter === 'range') {
+      const r = searchFilters[c.key] || {};
+      return '<div class="filter-range">' +
+        '<input type="number" id="flt_' + c.key + '_min" placeholder="Desde" value="' + (r.min ?? '') + '" oninput="updateSearchFilterRange(\'' + c.key + '\',\'min\',this.value)">' +
+        '<input type="number" id="flt_' + c.key + '_max" placeholder="Hasta" value="' + (r.max ?? '') + '" oninput="updateSearchFilterRange(\'' + c.key + '\',\'max\',this.value)">' +
+        '</div>';
+    }
+    return '<input type="text" id="flt_' + c.key + '" placeholder="Filtrar…" value="' + esc(searchFilters[c.key] || '') + '" oninput="updateSearchFilter(\'' + c.key + '\', this.value)">';
   };
 
   let h = '<div class="search-table-wrap"><table class="search-table"><thead><tr>' +
@@ -1321,6 +1414,8 @@ function renderSearchTable(ads) {
       const arrow = active ? (searchSort.dir === 1 ? '▲' : '▼') : '';
       return '<th class="sortable" onclick="sortSearchTable(\'' + c.key + '\')">' + esc(c.label) + (arrow ? '<span class="sort-arrow">' + arrow + '</span>' : '') + '</th>';
     }).join('') + '<th></th>' +
+    '</tr><tr class="filter-row">' +
+    SEARCH_COLS.map(c => '<th>' + filterCell(c) + '</th>').join('') + '<th></th>' +
     '</tr></thead><tbody>';
   for (const ad of list) {
     h += '<tr>' +
@@ -1337,7 +1432,11 @@ function renderSearchTable(ads) {
       '<td><button class="danger" onclick="removeAd(' + ad.id + ')">Quitar</button></td>' +
       '</tr>';
   }
+  if (!list.length) h += '<tr><td colspan="' + (SEARCH_COLS.length + 1) + '" class="filter-empty">Ningún anuncio coincide con los filtros.</td></tr>';
   h += '</tbody></table></div>';
+  if (hasActiveSearchFilters()) {
+    h = '<p class="hint filter-status">Mostrando ' + list.length + ' de ' + ads.length + ' · <a href="#" onclick="clearSearchFilters();return false">Quitar filtros</a></p>' + h;
+  }
   document.getElementById('searchTableArea').innerHTML = h;
 }
 
@@ -1430,7 +1529,7 @@ function csvEscape(v) {
 }
 
 function exportSearchCsv() {
-  const ads = sortedSearchAds(state.ads.filter(a => a.fromSearch));
+  const ads = sortedSearchAds(state.ads.filter(a => a.fromSearch).filter(adMatchesSearchFilters));
   if (!ads.length) return;
   const headers = ['Modelo', 'Precio', 'Valoración', 'Año', 'Km', 'Potencia', 'Combustible', 'Cambio', 'Ubicación', 'Vendedor', 'URL'];
   const rows = ads.map(ad => [
