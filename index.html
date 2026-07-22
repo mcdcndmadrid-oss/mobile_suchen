@@ -330,7 +330,7 @@
   table.search-table td.rating-cell { font-weight: 600; }
   table.search-table button.danger { padding: 4px 8px; font-size: 11px; }
 
-  .search-map { height: 480px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin: 4px 0 14px; }
+  .search-map { height: calc(100vh - 160px); min-height: 480px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin: 4px 0 14px; }
   .map-pin-popup { font: 13px var(--font-body); line-height: 1.4; }
   .map-pin-popup strong { font-family: var(--font-display); }
   .map-legend {
@@ -1386,7 +1386,8 @@ function renderMap() {
     marker.bindPopup(
       '<div class="map-pin-popup"><strong>' + esc(ad.title) + '</strong><br>' +
       (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') +
-      (ad.priceRating ? ' · ' + esc(ad.priceRating.label) : '') + '</div>'
+      (ad.priceRating ? ' · ' + esc(ad.priceRating.label) : '') +
+      (ad.url ? '<br><a href="' + esc(ad.url) + '" target="_blank" rel="noopener">Ver anuncio ↗</a>' : '') + '</div>'
     );
     bounds.push(c);
   }
