@@ -212,6 +212,23 @@
   }
   .row-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
   .hint { font-size: 13px; color: var(--ink-soft); }
+
+  /* Edición manual de campos (especialmente los que vienen vacíos) */
+  .editable-field { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; }
+  .editable-field .empty-value { color: var(--ink-soft); font-style: italic; }
+  .editable-field.was-edited .editable-value {
+    color: var(--accent-bright); border-bottom: 1px dotted var(--accent-bright);
+  }
+  .editable-field .edit-icon {
+    border: none; background: none; padding: 0 2px; font-size: 11px; line-height: 1;
+    color: var(--ink-soft); opacity: .45; cursor: pointer; flex: none;
+  }
+  .editable-field .edit-icon:hover { opacity: 1; color: var(--accent-bright); }
+  .editable-field.was-edited .edit-icon { opacity: .8; color: var(--accent-bright); }
+  .inline-edit-input {
+    font: inherit; padding: 3px 5px; border: 1px solid var(--accent-bright); border-radius: 4px;
+    background: var(--surface-3); color: var(--ink); min-width: 70px; max-width: 100%;
+  }
   .msg { font-size: 13px; font-weight: 600; }
   .msg.ok { color: var(--good-text); }
   .msg.err { color: var(--bad-text); }
@@ -384,6 +401,7 @@
   .car-card .price-row { display: flex; align-items: baseline; justify-content: space-between; }
   .car-card .price { font: 600 24px var(--font-mono); letter-spacing: -.01em; }
   .car-card .rating-label { font-size: 11.5px; font-weight: 600; margin-top: 2px; }
+  .car-card .total-price-note { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
   .car-card .score-block { text-align: right; }
   .car-card .specs {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; font-size: 12.5px;
@@ -562,12 +580,13 @@ const WEIGHT_LABELS = { 0: 'No cuenta', 1: 'Poco', 2: 'Normal', 3: 'Mucho' };
 function defaultPrefs() {
   return {
     numeric: {
-      priceGross: { label: 'Precio (€)',            green: 20000, red: 28000, weight: 3 },
+      priceGross: { label: 'Precio total (€)',       green: 20000, red: 28000, weight: 3 },
       mileageKm:  { label: 'Kilómetros',            green: 60000, red: 120000, weight: 3 },
       regYear:    { label: 'Año matriculación',     green: 2021,  red: 2017,  weight: 2 },
       powerPs:    { label: 'Potencia (CV)',         green: 150,   red: 110,   weight: 1 },
       owners:     { label: 'Propietarios',          green: 1,     red: 3,     weight: 1 },
-      travelTimeMadrid: { label: 'Tiempo desde Madrid (avión+coche)', green: 3, red: 6, weight: 2 }
+      travelTimeMadrid: { label: 'Tiempo desde Madrid (avión+coche)', green: 3, red: 6, weight: 2 },
+      consumption: { label: 'Consumo (l/100km)', green: 6, red: 8, weight: 1 }
     },
     categorical: {
       transmission: { label: 'Cambio',   prefer: 'Automático', options: ['Automático', 'Manual', 'Semiautomático'], weight: 2 },
@@ -905,6 +924,40 @@ function parsePowerPs(raw) {
   return m ? toNum(m[1]) : null;
 }
 
+// Impuesto de matriculación español: el tipo depende de las emisiones de CO₂ (g/km)
+// del propio anuncio; el importe es ese % sobre el precio de venta. El precio total
+// (lo que de verdad vas a pagar) es la base sobre la que actúa el criterio de precio.
+// Ancladas al principio del texto: mobile.de marca los datos que faltan como "-- g/km" /
+// "-- l/100km", y un regex suelto capturaría por error el "100" del propio "l/100km".
+function parseCo2Value(ad) {
+  if (!ad.co2Emissions) return null;
+  const m = String(ad.co2Emissions).trim().match(/^(\d+(?:[.,]\d+)?)/);
+  return m ? parseFloat(m[1].replace(',', '.')) : null;
+}
+function parseConsumptionValue(ad) {
+  if (!ad.energyConsumption) return null;
+  const m = String(ad.energyConsumption).trim().match(/^(\d+(?:[.,]\d+)?)/);
+  return m ? parseFloat(m[1].replace(',', '.')) : null;
+}
+// Hasta 120 g/km: 0% · 120-160: 4,75% · 160-200: 9,75% · 200 o más: 14,75%
+function registrationTaxRate(co2) {
+  if (co2 === null || co2 === undefined) return null;
+  if (co2 <= 120) return 0;
+  if (co2 < 160) return 4.75;
+  if (co2 < 200) return 9.75;
+  return 14.75;
+}
+function registrationTaxAmount(ad) {
+  const rate = registrationTaxRate(parseCo2Value(ad));
+  if (rate === null || ad.priceGross === null || ad.priceGross === undefined) return null;
+  return Math.round(ad.priceGross * rate / 100);
+}
+function totalPriceWithTax(ad) {
+  if (ad.priceGross === null || ad.priceGross === undefined) return null;
+  const tax = registrationTaxAmount(ad);
+  return ad.priceGross + (tax || 0);
+}
+
 /* ---------- scoring ---------- */
 const PRICE_RATING_MAP = {
   VERY_GOOD_PRICE: { v: 1, cls: 'good' }, GOOD_PRICE: { v: 1, cls: 'good' },
@@ -1088,7 +1141,7 @@ function evaluateAd(ad, prefs) {
   const parts = []; // {key,label,status:{v,cls},weight,text}
   const P = prefs;
 
-  const numVals = { priceGross: ad.priceGross, mileageKm: ad.mileageKm, regYear: regYear(ad), powerPs: ad.powerPs, owners: ad.owners, travelTimeMadrid: estimateTravelTimeFromMadridHours(ad.location) };
+  const numVals = { priceGross: totalPriceWithTax(ad), mileageKm: ad.mileageKm, regYear: regYear(ad), powerPs: ad.powerPs, owners: ad.owners, travelTimeMadrid: estimateTravelTimeFromMadridHours(ad.location), consumption: parseConsumptionValue(ad) };
   for (const [k, cfg] of Object.entries(P.numeric)) {
     if (!cfg.weight) continue;
     const st = numericStatus(numVals[k], cfg);
@@ -1155,6 +1208,7 @@ function fmtNumParam(key, v) {
   if (key === 'mileageKm') return fmtInt.format(v) + ' km';
   if (key === 'powerPs') return fmtInt.format(v) + ' CV';
   if (key === 'travelTimeMadrid') return fmtHours(v);
+  if (key === 'consumption') return String(v).replace('.', ',') + ' l/100km';
   return String(v);
 }
 function fmtHours(v) {
@@ -1169,6 +1223,64 @@ function displayCat(key, val, cfg) {
 function esc(s) {
   return String(s === null || s === undefined ? '—' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* ---------- edición manual de campos ----------
+   Un icono de lápiz junto al valor (no todo el texto es clicable, para no interferir
+   con enlaces como "Ver anuncio"). type: 'text' | 'number' | 'seller'.
+   displayHtml: HTML ya formateado (ej. "25.000 €") para mostrar en modo lectura;
+   si no se indica, se usa el valor en crudo escapado. Editar siempre parte del valor real.
+   Los campos tocados a mano quedan marcados (ad._edited) para distinguirlos del dato
+   original de mobile.de: color de acento + subrayado punteado, y el lápiz se ve "activo". */
+function editableField(ad, field, type, displayHtml) {
+  const value = ad[field];
+  const isEmpty = value === null || value === undefined || value === '';
+  const wasEdited = !!(ad._edited && ad._edited[field]);
+  const display = isEmpty ? '<span class="empty-value">vacío</span>' : (displayHtml !== undefined ? displayHtml : esc(value));
+  return '<span class="editable-field' + (wasEdited ? ' was-edited' : '') + '" data-ad="' + ad.id + '" data-field="' + field + '" data-type="' + type + '">' +
+    '<span class="editable-value"' + (wasEdited ? ' title="Editado manualmente"' : '') + '>' + display + '</span>' +
+    '<button type="button" class="edit-icon" title="Editar" onclick="startEditField(this.parentElement)">✎</button>' +
+    '</span>';
+}
+function startEditField(wrap) {
+  if (wrap.querySelector('input, select')) return;
+  const adId = wrap.dataset.ad, field = wrap.dataset.field, type = wrap.dataset.type;
+  const ad = state.ads.find(a => String(a.id) === adId);
+  if (!ad) return;
+  const current = ad[field];
+
+  let inputEl;
+  if (type === 'seller') {
+    inputEl = document.createElement('select');
+    inputEl.innerHTML = '<option value="DEALER">Profesional</option><option value="FOR_SALE_BY_OWNER">Particular</option>';
+    inputEl.value = current === 'FOR_SALE_BY_OWNER' ? 'FOR_SALE_BY_OWNER' : 'DEALER';
+  } else {
+    inputEl = document.createElement('input');
+    inputEl.type = type === 'number' ? 'number' : 'text';
+    inputEl.value = current === null || current === undefined ? '' : current;
+  }
+  inputEl.className = 'inline-edit-input';
+
+  const commit = () => {
+    let val = inputEl.value;
+    if (type === 'number') val = val === '' ? null : parseFloat(val);
+    else val = val === '' ? null : val;
+    ad[field] = val;
+    ad._edited = ad._edited || {};
+    ad._edited[field] = true;
+    save();
+    render();
+  };
+  inputEl.addEventListener('blur', commit);
+  inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') inputEl.blur();
+    else if (e.key === 'Escape') { inputEl.removeEventListener('blur', commit); render(); }
+  });
+
+  wrap.innerHTML = '';
+  wrap.appendChild(inputEl);
+  inputEl.focus();
+  if (inputEl.select) inputEl.select();
 }
 
 /* ---------- color translation & swatch ---------- */
@@ -1222,11 +1334,6 @@ function contrastText(hex) {
   const a = [r, g, b].map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
   const lum = 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
   return lum > 0.5 ? '#1b2330' : '#f5f5f5';
-}
-function colorCellHtml(ad) {
-  const info = colorInfo(ad.color);
-  const label = info ? info.es : esc(ad.color);
-  return label + (ad.interior ? ' · ' + esc(ad.interior) : '');
 }
 function colorCellStyle(ad) {
   const info = colorInfo(ad.color);
@@ -1458,18 +1565,27 @@ function renderSearchTable(ads) {
     '</tr><tr class="filter-row">' +
     SEARCH_COLS.map(c => '<th>' + filterCell(c) + '</th>').join('') + '<th></th>' +
     '</tr></thead><tbody>';
+  const titleCell = ad => {
+    const titleDisplay = ad.url ? '<a href="' + esc(ad.url) + '" target="_blank" rel="noopener">' + esc(ad.title) + '</a>' :
+      (ad.title ? esc(ad.title) : '<span class="empty-value">vacío</span>');
+    return '<span class="editable-field" data-ad="' + ad.id + '" data-field="title" data-type="text">' +
+      '<span class="editable-value">' + titleDisplay + '</span>' +
+      '<button type="button" class="edit-icon" title="Editar" onclick="startEditField(this.parentElement)">✎</button>' +
+      '</span>';
+  };
+
   for (const ad of list) {
     h += '<tr>' +
-      '<td class="title-cell">' + (ad.url ? '<a href="' + esc(ad.url) + '" target="_blank" rel="noopener">' + esc(ad.title) + '</a>' : esc(ad.title)) + '</td>' +
-      '<td class="num">' + (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') + '</td>' +
+      '<td class="title-cell">' + titleCell(ad) + '</td>' +
+      '<td class="num">' + editableField(ad, 'priceGross', 'number') + '</td>' +
       '<td class="rating-cell"' + ratingStyle(ad) + '>' + (ad.priceRating ? esc(ad.priceRating.label) : '—') + '</td>' +
-      '<td class="num">' + (regYear(ad) ?? '—') + '</td>' +
-      '<td class="num">' + (ad.mileageKm !== null && ad.mileageKm !== undefined ? fmtInt.format(ad.mileageKm) : '—') + '</td>' +
-      '<td class="num">' + (ad.powerPs ?? '—') + '</td>' +
-      '<td>' + esc(ad.fuel) + '</td>' +
-      '<td>' + esc(ad.transmission) + '</td>' +
-      '<td>' + esc(ad.location) + '</td>' +
-      '<td>' + esc(ad.sellerName) + '</td>' +
+      '<td class="num">' + editableField(ad, 'firstRegistration', 'text') + '</td>' +
+      '<td class="num">' + editableField(ad, 'mileageKm', 'number') + '</td>' +
+      '<td class="num">' + editableField(ad, 'powerPs', 'number') + '</td>' +
+      '<td>' + editableField(ad, 'fuel', 'text') + '</td>' +
+      '<td>' + editableField(ad, 'transmission', 'text') + '</td>' +
+      '<td>' + editableField(ad, 'location', 'text') + '</td>' +
+      '<td>' + editableField(ad, 'sellerName', 'text') + '</td>' +
       '<td><button class="danger" onclick="removeAd(' + ad.id + ')">Quitar</button></td>' +
       '</tr>';
   }
@@ -1596,46 +1712,67 @@ function clearSearchResults() {
 
 /* ---------- comparison table row definitions ---------- */
 const ROW_DEFS = [
-  { id: 'price', label: 'Precio', key: 'priceGross', numeric: true, fn: ad => ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—' },
+  {
+    id: 'totalPrice', label: 'Precio total', key: 'priceGross', numeric: true, fn: ad => {
+      const t = totalPriceWithTax(ad);
+      return t !== null ? fmtEUR.format(t) : '<span class="hint">—</span>';
+    }
+  },
+  { id: 'price', label: 'Precio', fn: ad => editableField(ad, 'priceGross', 'number', ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : undefined) },
+  {
+    id: 'registrationTax', label: 'Impuesto matriculación', fn: ad => {
+      const rate = registrationTaxRate(parseCo2Value(ad));
+      if (rate === null) return '<span class="hint">No calculable (falta CO₂)</span>';
+      const amount = registrationTaxAmount(ad);
+      return String(rate).replace('.', ',') + '%' + (amount !== null ? ' · ' + fmtEUR.format(amount) : '');
+    }
+  },
   {
     id: 'priceRating', label: 'Valoración mobile.de', key: 'priceRating', fn: ad => ad.priceRating ? esc(ad.priceRating.label) : '—',
     styleFn: ad => { const c = ad.priceRating && priceRatingColors(ad.priceRating.rating); return c ? 'background:' + c.bg + ';color:' + c.text : null; }
   },
-  { id: 'regYear', label: 'Matriculación', key: 'regYear', fn: ad => esc(ad.firstRegistration) },
-  { id: 'mileage', label: 'Kilómetros', key: 'mileageKm', numeric: true, fn: ad => ad.mileageKm !== null && ad.mileageKm !== undefined ? fmtInt.format(ad.mileageKm) + ' km' : '—' },
-  { id: 'power', label: 'Potencia', key: 'powerPs', numeric: true, fn: ad => ad.powerPs ? fmtInt.format(ad.powerPs) + ' CV' : '—' },
+  { id: 'regYear', label: 'Matriculación', key: 'regYear', fn: ad => editableField(ad, 'firstRegistration', 'text') },
+  { id: 'mileage', label: 'Kilómetros', key: 'mileageKm', numeric: true, fn: ad => editableField(ad, 'mileageKm', 'number', ad.mileageKm !== null && ad.mileageKm !== undefined ? fmtInt.format(ad.mileageKm) + ' km' : undefined) },
+  { id: 'power', label: 'Potencia', key: 'powerPs', numeric: true, fn: ad => editableField(ad, 'powerPs', 'number', ad.powerPs ? fmtInt.format(ad.powerPs) + ' CV' : undefined) },
   {
-    id: 'engine', label: 'Motor', fn: ad => {
-      const parts = [];
-      if (ad.cubicCapacity) parts.push(fmtInt.format(ad.cubicCapacity) + ' cm³');
-      if (ad.cylinder) parts.push(ad.cylinder + ' cilindros');
-      if (ad.engineType) parts.push(esc(ad.engineType));
-      return parts.length ? parts.join(' · ') : '<span class="hint">—</span>';
-    }
+    id: 'engine', label: 'Motor', fn: ad => [
+      editableField(ad, 'cubicCapacity', 'number', ad.cubicCapacity ? fmtInt.format(ad.cubicCapacity) + ' cm³' : undefined),
+      editableField(ad, 'cylinder', 'number', ad.cylinder ? ad.cylinder + ' cilindros' : undefined),
+      editableField(ad, 'engineType', 'text')
+    ].join(' · ')
   },
-  { id: 'fuel', label: 'Combustible', key: 'fuel', fn: ad => esc(ad.fuel) },
+  { id: 'fuel', label: 'Combustible', key: 'fuel', fn: ad => editableField(ad, 'fuel', 'text') },
   {
-    id: 'emissions', label: 'Emisiones', fn: ad => {
-      const parts = [];
-      if (ad.co2Emissions) parts.push('CO₂ ' + esc(ad.co2Emissions));
-      if (ad.emissionClass) parts.push(esc(ad.emissionClass));
-      if (ad.emissionsSticker) parts.push('Etiqueta ' + esc(ad.emissionsSticker));
-      if (ad.energyConsumption) parts.push(esc(ad.energyConsumption));
-      return parts.length ? parts.join(' · ') : '<span class="hint">—</span>';
-    }
+    id: 'emissions', label: 'Emisiones', fn: ad => [
+      editableField(ad, 'co2Emissions', 'text', ad.co2Emissions ? 'CO₂ ' + esc(ad.co2Emissions) : undefined),
+      editableField(ad, 'emissionClass', 'text'),
+      editableField(ad, 'emissionsSticker', 'text', ad.emissionsSticker ? 'Etiqueta ' + esc(ad.emissionsSticker) : undefined)
+    ].join(' · ')
   },
-  { id: 'transmission', label: 'Cambio', key: 'transmission', fn: ad => esc(ad.transmission) },
-  { id: 'owners', label: 'Propietarios', key: 'owners', numeric: true, fn: ad => esc(ad.owners) },
-  { id: 'accidentFree', label: 'Sin accidentes', key: 'accidentFree', fn: ad => esc(ad.damageCondition) },
+  {
+    id: 'consumption', label: 'Consumo', key: 'consumption', numeric: true,
+    fn: ad => editableField(ad, 'energyConsumption', 'text')
+  },
+  { id: 'transmission', label: 'Cambio', key: 'transmission', fn: ad => editableField(ad, 'transmission', 'text') },
+  { id: 'owners', label: 'Propietarios', key: 'owners', numeric: true, fn: ad => editableField(ad, 'owners', 'number') },
+  { id: 'accidentFree', label: 'Sin accidentes', key: 'accidentFree', fn: ad => editableField(ad, 'damageCondition', 'text') },
   { id: 'vehicleCondition', label: 'Tipo de vehículo', fn: ad => { const c = detectConditionType(ad); return c ? esc(c) : '<span class="hint">—</span>'; } },
-  { id: 'hu', label: 'HU (ITV)', fn: ad => esc(ad.hu) },
-  { id: 'climate', label: 'Climatización', fn: ad => esc(ad.climatisation) },
-  { id: 'color', label: 'Color / interior', fn: colorCellHtml, styleFn: colorCellStyle },
-  { id: 'seller', label: 'Vendedor', key: 'sellerType', fn: ad => (ad.sellerType === 'DEALER' ? 'Profesional' : ad.sellerType === 'FOR_SALE_BY_OWNER' ? 'Particular' : esc(ad.sellerType)) + (ad.sellerName ? '<br><span class="car-meta">' + esc(ad.sellerName) + '</span>' : '') },
+  { id: 'hu', label: 'HU (ITV)', fn: ad => editableField(ad, 'hu', 'text') },
+  { id: 'climate', label: 'Climatización', fn: ad => editableField(ad, 'climatisation', 'text') },
+  {
+    id: 'color', label: 'Color / interior', styleFn: colorCellStyle, fn: ad =>
+      editableField(ad, 'color', 'text', colorInfo(ad.color) ? esc(colorInfo(ad.color).es) : undefined) +
+      ' · ' + editableField(ad, 'interior', 'text')
+  },
+  {
+    id: 'seller', label: 'Vendedor', key: 'sellerType', fn: ad =>
+      editableField(ad, 'sellerType', 'seller', ad.sellerType === 'DEALER' ? 'Profesional' : ad.sellerType === 'FOR_SALE_BY_OWNER' ? 'Particular' : undefined) +
+      '<br><span class="car-meta">' + editableField(ad, 'sellerName', 'text') + '</span>'
+  },
   {
     id: 'location', label: 'Ubicación', key: 'travelTimeMadrid', fn: ad => {
       const h = estimateTravelTimeFromMadridHours(ad.location);
-      return esc(ad.location) + (h !== null ? '<div class="car-meta">~' + fmtHours(h) + ' desde Madrid</div>' : '');
+      return editableField(ad, 'location', 'text') + (h !== null ? '<div class="car-meta">~' + fmtHours(h) + ' desde Madrid</div>' : '');
     }
   },
   {
@@ -1682,12 +1819,12 @@ function renderCards() {
     const strengths = ev.parts.filter(p => p.status.cls === 'good' && p.weight >= 2);
     const weaknesses = ev.parts.filter(p => p.status.cls === 'bad');
     const specs = [
-      { label: 'Año', value: regYear(ad) ? String(regYear(ad)) : '—' },
-      { label: 'Kilómetros', value: ad.mileageKm !== null && ad.mileageKm !== undefined ? fmtInt.format(ad.mileageKm) + ' km' : '—' },
-      { label: 'Potencia', value: ad.powerPs ? ad.powerPs + ' CV' : '—' },
-      { label: 'Cambio', value: ad.transmission ? esc(ad.transmission) : '—' },
-      { label: 'Combustible', value: ad.fuel ? esc(ad.fuel) : '—' },
-      { label: 'Propietarios', value: ad.owners !== null && ad.owners !== undefined ? String(ad.owners) : '—' }
+      { label: 'Año', value: editableField(ad, 'firstRegistration', 'text') },
+      { label: 'Kilómetros', value: editableField(ad, 'mileageKm', 'number', ad.mileageKm !== null && ad.mileageKm !== undefined ? fmtInt.format(ad.mileageKm) + ' km' : undefined) },
+      { label: 'Potencia', value: editableField(ad, 'powerPs', 'number', ad.powerPs ? ad.powerPs + ' CV' : undefined) },
+      { label: 'Cambio', value: editableField(ad, 'transmission', 'text') },
+      { label: 'Combustible', value: editableField(ad, 'fuel', 'text') },
+      { label: 'Propietarios', value: editableField(ad, 'owners', 'number') }
     ];
 
     h += '<article class="car-card">' +
@@ -1699,20 +1836,21 @@ function renderCards() {
       '<div><h3>' + esc(ad.title) + '</h3><p class="meta-line">' + esc(ad.category || '') + (ad.location ? ' · ' + esc(ad.location) : '') +
       (ad.fromSearch ? ' · <span title="Datos resumidos desde la búsqueda; abre el anuncio para el detalle completo">Búsqueda</span>' : '') + '</p></div>' +
       '<div class="price-row">' +
-      '<div><span class="price">' + (ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : '—') + '</span>' +
+      '<div><span class="price">' + editableField(ad, 'priceGross', 'number', ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : undefined) + '</span>' +
+      (totalPriceWithTax(ad) !== null ? '<div class="total-price-note">Total con impuesto: ' + fmtEUR.format(totalPriceWithTax(ad)) + '</div>' : '') +
       (ad.priceRating ? '<div class="rating-label"' + (priceRatingColors(ad.priceRating.rating) ? ' style="color:' + priceRatingColors(ad.priceRating.rating).text + '"' : '') + '>' + esc(ad.priceRating.label) + '</div>' : '') +
       '</div>' +
       '<div class="score-block"><span class="score-num">' + (ev.score ?? '—') + '<small> /100</small></span>' +
       '<div class="score-bar"><i style="width:' + (ev.score || 0) + '%;background:' + barColor + '"></i></div></div>' +
       '</div>' +
-      '<div class="specs">' + specs.map(s => '<div class="spec"><span class="spec-label">' + esc(s.label) + '</span><span class="spec-value">' + esc(s.value) + '</span></div>').join('') + '</div>' +
+      '<div class="specs">' + specs.map(s => '<div class="spec"><span class="spec-label">' + esc(s.label) + '</span><span class="spec-value">' + s.value + '</span></div>').join('') + '</div>' +
       '<div class="chips">' +
       strengths.map(p => '<span class="chip good">' + esc(p.label) + '</span>').join('') +
       weaknesses.map(p => '<span class="chip bad">' + esc(p.label) + '</span>').join('') +
       '</div>' +
       '<div class="footer">' +
       (ad.url ? '<a class="adlink" href="' + esc(ad.url) + '" target="_blank" rel="noopener">Ver anuncio ↗</a>' : '') +
-      '<span class="seller-line">' + esc(ad.sellerName || '') + '</span>' +
+      '<span class="seller-line">' + editableField(ad, 'sellerName', 'text') + '</span>' +
       '<button class="danger" onclick="removeAd(' + ad.id + ')" title="Quitar">✕</button>' +
       '</div>' +
       '</div>' +
