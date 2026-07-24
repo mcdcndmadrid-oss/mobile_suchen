@@ -203,6 +203,13 @@
     box-shadow: var(--shadow); padding: 22px 24px; margin-bottom: 22px;
   }
   section.panel[hidden] { display: none; }
+  .panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .panel-header .eyebrow { margin: 0; }
+  .panel-close {
+    border: none; background: none; padding: 2px 4px; font-size: 13px; line-height: 1;
+    color: var(--ink-soft); cursor: pointer; flex: none; border-radius: 4px;
+  }
+  .panel-close:hover { color: var(--bad); background: var(--surface-2); }
 
   textarea {
     width: 100%; min-height: 130px; resize: vertical;
@@ -467,7 +474,10 @@
   </section>
 
   <section class="panel" id="addPanel" hidden>
-    <p class="eyebrow">Añadir anuncio</p>
+    <div class="panel-header">
+      <p class="eyebrow">Añadir anuncio</p>
+      <button type="button" class="panel-close" title="Ocultar" onclick="document.getElementById('addPanel').hidden = true">✕</button>
+    </div>
     <p class="hint"><strong>Método recomendado:</strong> instala una vez el bookmarklet automático. Después, desde un anuncio individual o desde una página de resultados de búsqueda de mobile.de, pulsa el marcador: importa ese anuncio, o todos los de la búsqueda, directamente a este comparador.</p>
     <details class="help" open>
       <summary>Añadir automáticamente con un clic</summary>
