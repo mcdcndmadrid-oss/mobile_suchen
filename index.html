@@ -656,6 +656,7 @@ function parseInput(text) {
   if (!text) throw new Error('El cuadro está vacío.');
 
   let recs;
+  let bookmarkletImageUrl;
   if (text[0] === '{') {
     let obj;
     try { obj = JSON.parse(text); }
@@ -669,7 +670,10 @@ function parseInput(text) {
     }
     else if (obj.id && obj.title && ('priceGross' in obj)) recs = [obj]; // already normalized
     else throw new Error('JSON no reconocido: falta la clave "mobileAd".');
-    if (obj.imageUrl && recs.length === 1 && !recs[0].imageUrl) recs[0].imageUrl = obj.imageUrl;
+    // La imagen que el bookmarklet detecta en el DOM en vivo es solo un respaldo:
+    // a veces coge una miniatura equivocada (anuncios similares, carga diferida...).
+    // Se prefiere la que sale de los propios datos de la galería (extractImageUrl).
+    bookmarkletImageUrl = obj.imageUrl;
   } else if (text.includes('__INITIAL_STATE__')) {
     const marker = '__INITIAL_STATE__';
     const mi = text.indexOf(marker);
@@ -694,8 +698,7 @@ function parseInput(text) {
   }
 
   if (recs.length === 1 && !recs[0].imageUrl) {
-    const img = extractImageUrl(text);
-    if (img) recs[0].imageUrl = img;
+    recs[0].imageUrl = extractImageUrl(text) || bookmarkletImageUrl;
   }
   return recs;
 }
@@ -783,11 +786,16 @@ function parseSearchResultsPage(text) {
   return records;
 }
 
-// La URL de la foto de portada sigue este mismo patrón en ambos frontends de mobile.de;
-// basta con encontrarla en el texto pegado y fijar un tamaño de miniatura consistente.
+// Prioriza la clave "images":[{"uri":"..."}] — es el propio array de la galería del
+// anuncio (mismo patrón que ya usa parseSearchListingChunk), así que su primer elemento
+// es SIEMPRE la primera foto de esa galería y no una imagen suelta de otra parte de la
+// página (banners, "anuncios similares"...). El regex genérico queda solo de última red.
 function extractImageUrl(text) {
-  const m = text.match(/https:\/\/img\.classistatic\.de\/api\/v1\/mo-prod\/images\/[a-f0-9]{2}\/[a-f0-9-]+/i);
-  return m ? m[0] + '?rule=mo-240' : null;
+  const norm = text.replace(/\\+"/g, '"');
+  const anchored = norm.match(/"images":\[\{"uri":"([^"]+)"/);
+  if (anchored) return 'https://' + anchored[1].replace(/^https?:\/\//, '') + '?rule=mo-240';
+  const loose = text.match(/https:\/\/img\.classistatic\.de\/api\/v1\/mo-prod\/images\/[a-f0-9]{2}\/[a-f0-9-]+/i);
+  return loose ? loose[0] + '?rule=mo-240' : null;
 }
 
 function normalizeEntry(entry, capturedUrl) {
