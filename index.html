@@ -457,6 +457,39 @@
   @media (prefers-reduced-motion: no-preference) {
     .score-bar i { transition: width .5s ease; }
   }
+
+  /* Modelos oficiales */
+  .om-cat { margin-bottom: 14px; }
+  .om-cat:last-child { margin-bottom: 0; }
+  .om-cat-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+  .om-cat-models { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 6px 14px; }
+  .om-check { display: flex; align-items: flex-start; gap: 8px; padding: 5px 6px; border-radius: 7px; cursor: pointer; font-size: 13px; }
+  .om-check:hover { background: var(--surface-2); }
+  .om-check input { margin-top: 3px; accent-color: var(--accent-bright); }
+  .om-brand-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; flex: none; }
+  .om-brand-dot.bmw { background: #1d63c9; }
+  .om-brand-dot.audi { background: #b31217; }
+  .om-badge-disc {
+    display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--warn-text); background: var(--warn-bg); border-radius: 5px; padding: 1px 6px; margin-left: 6px;
+  }
+  td.om-head { min-width: 210px; }
+  .om-brand-line { font-size: 11px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .05em; }
+  .om-name-line { font-size: 14.5px; font-weight: 700; margin: 4px 0; }
+  a.om-official-link { font-size: 12px; text-decoration: none; color: var(--accent-bright); }
+  a.om-official-link:hover { text-decoration: underline; }
+  .om-no-link { font-size: 12px; color: var(--ink-soft); font-style: italic; }
+  table.cmp td.om-best { background: var(--good-bg); color: var(--good-text); font-weight: 700; }
+  table.cmp td.om-worst { background: var(--bad-bg); color: var(--bad-text); }
+  a.official-model-link { font-size: 12px; color: var(--accent-bright); text-decoration: none; }
+  a.official-model-link:hover { text-decoration: underline; }
+
+  .om-sizes-wrap { display: flex; flex-wrap: wrap; gap: 24px; padding: 20px; }
+  .om-size-svg-wrap { flex: 1; min-width: 320px; }
+  .om-size-legend { display: flex; flex-direction: column; gap: 10px; min-width: 220px; }
+  .om-legend-item { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; }
+  .om-legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex: none; margin-top: 2px; }
+  .om-height-bars { padding: 0 20px 20px; }
 </style>
 <script>
   (function () {
@@ -480,6 +513,7 @@
         <button id="btnViewTable">Tabla</button>
         <button id="btnViewMap">Mapa</button>
         <button id="btnViewSearch">Búsqueda<span id="searchTabCount" class="tab-count" hidden></span></button>
+        <button id="btnViewModels">Modelos oficiales</button>
       </div>
       <button id="btnTheme" title="Cambiar tema"></button>
       <button id="btnPrefs">Preferencias</button>
@@ -601,6 +635,28 @@
       <span><i class="ring"></i> En tu comparador (con ficha)</span>
     </div>
     <div id="mapCanvas" class="search-map"></div>
+  </div>
+
+  <div id="modelsArea" hidden>
+    <section class="panel">
+      <div class="panel-header">
+        <p class="eyebrow">Modelos oficiales — BMW 3 Serie Touring vs Audi A4/A5 Avant</p>
+      </div>
+      <p class="hint">Datos técnicos publicados por BMW y Audi (bmw.de / audi.de), con datos de respaldo de ADAC/angurten.de donde la web oficial no estaba disponible. Marca los modelos para compararlos lado a lado.</p>
+      <div id="omCheckGroups"></div>
+      <div class="row-actions">
+        <button onclick="omSelectAll()">Marcar todos</button>
+        <button onclick="omSelectNone()">Desmarcar todos</button>
+        <button onclick="omSelectCurrentOnly()">Solo modelos vigentes</button>
+        <span style="flex:1"></span>
+        <div class="view-toggle">
+          <button id="omBtnTable" class="active" onclick="omSetView('table')">Tabla</button>
+          <button id="omBtnSizes" onclick="omSetView('sizes')">Tamaños</button>
+        </div>
+      </div>
+    </section>
+    <div id="omBody"></div>
+    <p class="hint">El Audi A4 Avant ya no se vende nuevo (sustituido por la nueva gama A5 Avant). El A5 Avant diésel de Audi solo existe con un motor (150 kW/204 CV) — las filas "TDI 150" y "TDI 204" muestran los mismos datos técnicos a propósito. Verifica precios y consumos en la configuradora oficial antes de decidir.</p>
   </div>
 
   <section class="panel" id="recPanel" hidden>
@@ -1413,6 +1469,7 @@ function render() {
   renderSearchResults();
   if (state.view === 'table') renderTable();
   else if (state.view === 'map') renderMap();
+  else if (state.view === 'models') renderOfficialModels();
   else if (state.view !== 'search') renderCards();
   renderRecs();
   renderPrefs();
@@ -1424,15 +1481,18 @@ function applyViewToggle() {
   document.getElementById('cardsArea').hidden = v !== 'cards';
   document.getElementById('tableArea').hidden = v !== 'table';
   document.getElementById('mapArea').hidden = v !== 'map';
+  document.getElementById('modelsArea').hidden = v !== 'models';
   document.getElementById('btnViewCards').classList.toggle('active', v === 'cards');
   document.getElementById('btnViewTable').classList.toggle('active', v === 'table');
   document.getElementById('btnViewMap').classList.toggle('active', v === 'map');
   document.getElementById('btnViewSearch').classList.toggle('active', v === 'search');
+  document.getElementById('btnViewModels').classList.toggle('active', v === 'models');
 
-  // "Búsqueda" es una pestaña aparte: cuando está activa, el resto de secciones del
-  // comparador detallado (criterios activos y recomendaciones) no aplican y se ocultan.
-  // La visibilidad del propio panel de búsqueda la gestiona renderSearchResults().
-  if (v === 'search') {
+  // "Búsqueda" y "Modelos oficiales" son pestañas aparte: cuando alguna está activa,
+  // el resto de secciones del comparador detallado (criterios activos y recomendaciones)
+  // no aplican y se ocultan. La visibilidad del propio panel de búsqueda la gestiona
+  // renderSearchResults().
+  if (v === 'search' || v === 'models') {
     document.getElementById('criteriaBar').hidden = true;
     document.getElementById('recPanel').hidden = true;
   }
@@ -1441,6 +1501,394 @@ function applyViewToggle() {
   const badge = document.getElementById('searchTabCount');
   badge.hidden = !searchCount;
   badge.textContent = searchCount;
+}
+
+/* ---------- Modelos oficiales (BMW 3 Serie Touring / Audi A4-A5 Avant) ---------- */
+const OM_ROWS = [
+  { key: 'fuel', label: 'Combustible' },
+  { key: 'drive', label: 'Tracción' },
+  { key: 'powerKw', label: 'Potencia', unit: ' kW', extra: m => m.powerPs ? ' (' + m.powerPs + ' CV)' : '', compare: 'max' },
+  { key: 'torqueNm', label: 'Par motor', unit: ' Nm', compare: 'max' },
+  { key: 'displacementCc', label: 'Cilindrada', unit: ' cc', extra: m => m.cylinders ? ' · ' + m.cylinders + ' cil.' : '' },
+  { key: 'transmission', label: 'Transmisión' },
+  { key: 'accel0100', label: '0-100 km/h', unit: ' s', compare: 'min' },
+  { key: 'topSpeed', label: 'Velocidad máxima', unit: ' km/h', compare: 'max' },
+  { key: 'consumptionWltp', label: 'Consumo WLTP', unit: ' l/100km', compare: 'min' },
+  { key: 'co2Wltp', label: 'Emisiones CO₂ WLTP', unit: ' g/km', compare: 'min' },
+  { key: 'bootVolume', label: 'Maletero', compare: 'max' },
+  { key: 'dimensions', label: 'Largo × ancho × alto', get: omDimsText },
+  { key: 'wheelbaseMm', label: 'Batalla', unit: ' mm' },
+  { key: 'weightKg', label: 'Peso en vacío', unit: ' kg', compare: 'min' },
+  { key: 'basePriceEur', label: 'Precio base (Alemania)', fmt: v => v ? fmtEUR.format(v) : null, compare: 'min' },
+  { key: 'sourceNote', label: 'Fuente / notas' },
+];
+
+const OM_CATEGORIES = [
+  {
+    title: '1. Gasolina de acceso',
+    models: [
+      {
+        id: 'bmw-318i', brand: 'BMW', name: 'BMW 318i Touring', fuel: 'Gasolina', drive: 'Trasera (RWD)',
+        powerKw: 115, powerPs: 156, torqueNm: 250, displacementCc: 1998, cylinders: 4,
+        transmission: '8 velocidades Steptronic automática', accel0100: 8.7, topSpeed: 220,
+        consumptionWltp: '6,7 – 7,5', co2Wltp: '151 – 168', bootVolume: '500 / 1.510 l',
+        lengthMm: 4709, widthMm: 1827, heightMm: 1455, wheelbaseMm: 2851, weightKg: 1645,
+        basePriceEur: 48300, discontinued: false,
+        officialUrl: 'https://www.bmw.de/de/neufahrzeuge/3er/bmw-3-er-touring/bmw-3er-touring-technische-daten.html',
+        sourceNote: 'angurten.de (bmw.de no accesible en el momento de la consulta)'
+      },
+      {
+        id: 'audi-a4-35tfsi', brand: 'Audi', name: 'Audi A4 Avant 35 TFSI', fuel: 'Gasolina', drive: 'Delantera (FWD)',
+        powerKw: 110, powerPs: 150, torqueNm: 270, displacementCc: 1984, cylinders: 4,
+        transmission: '6 velocidades manual', accel0100: 8.9, topSpeed: 210,
+        consumptionWltp: '6,3', co2Wltp: '143', bootVolume: '495 / 1.495 l',
+        lengthMm: 4762, widthMm: 1847, heightMm: 1435, wheelbaseMm: 2820, weightKg: 1560,
+        basePriceEur: 40800, discontinued: true, officialUrl: null,
+        sourceNote: 'ADAC (histórico). Producción finalizada 11/2023 — ya no se vende nuevo.'
+      },
+      {
+        id: 'audi-a5-35tfsi', brand: 'Audi', name: 'Audi A5 Avant 35 TFSI', fuel: 'Gasolina', drive: 'Delantera (FWD)',
+        powerKw: 110, powerPs: 150, torqueNm: 280, displacementCc: 1984, cylinders: 4,
+        transmission: '7 velocidades S tronic', accel0100: 9.8, topSpeed: 214,
+        consumptionWltp: '6,7', co2Wltp: '153', bootVolume: '476 / 1.424 l',
+        lengthMm: 4829, widthMm: 1860, heightMm: 1460, wheelbaseMm: 2892, weightKg: 1785,
+        basePriceEur: 49450, discontinued: false,
+        officialUrl: 'https://www.audi.de/de/neuwagen/a5/a5-avant/',
+        sourceNote: 'audi.de (potencia, precio) + ADAC (resto). Audi ya no usa la etiqueta "35 TFSI" — el motor equivalente actual se llama "TFSI 110 kW".'
+      }
+    ]
+  },
+  {
+    title: '2. Gasolina de 180-200 CV',
+    models: [
+      {
+        id: 'bmw-320i', brand: 'BMW', name: 'BMW 320i Touring', fuel: 'Gasolina', drive: 'Trasera (RWD)',
+        powerKw: 135, powerPs: 184, torqueNm: 300, displacementCc: 1998, cylinders: 4,
+        transmission: '8 velocidades Steptronic automática', accel0100: 7.5, topSpeed: 230,
+        consumptionWltp: '6,7 – 7,5', co2Wltp: '151 – 169', bootVolume: '500 / 1.510 l',
+        lengthMm: 4709, widthMm: 1827, heightMm: 1455, wheelbaseMm: 2851, weightKg: 1645,
+        basePriceEur: 54100, discontinued: false,
+        officialUrl: 'https://www.bmw.de/de/neufahrzeuge/3er/bmw-3-er-touring/bmw-3er-touring-technische-daten.html',
+        sourceNote: 'angurten.de (bmw.de no accesible en el momento de la consulta)'
+      },
+      {
+        id: 'audi-a4-40tfsiq', brand: 'Audi', name: 'Audi A4 Avant 40 TFSI quattro', fuel: 'Gasolina', drive: 'Total (quattro)',
+        powerKw: 150, powerPs: 204, torqueNm: 320, displacementCc: 1984, cylinders: 4,
+        transmission: '7 velocidades S tronic', accel0100: 6.9, topSpeed: 210,
+        consumptionWltp: '6,6', co2Wltp: '150', bootVolume: '495 / 1.495 l',
+        lengthMm: 4762, widthMm: 1847, heightMm: 1435, wheelbaseMm: 2820, weightKg: 1675,
+        basePriceEur: 49950, discontinued: true, officialUrl: null,
+        sourceNote: 'ADAC (histórico). Producción finalizada 11/2024 — ya no se vende nuevo.'
+      },
+      {
+        id: 'audi-a5-40tfsi', brand: 'Audi', name: 'Audi A5 Avant 40 TFSI', fuel: 'Gasolina', drive: 'Delantera (FWD)',
+        powerKw: 150, powerPs: 204, torqueNm: 340, displacementCc: 1984, cylinders: 4,
+        transmission: '7 velocidades S tronic', accel0100: null, topSpeed: null,
+        consumptionWltp: '6,7 – 7,7', co2Wltp: '153 – 176', bootVolume: null,
+        lengthMm: 4829, widthMm: 1860, heightMm: 1460, wheelbaseMm: 2892, weightKg: null,
+        basePriceEur: 56150, discontinued: false,
+        officialUrl: 'https://www.audi.de/de/neuwagen/a5/a5-avant/',
+        sourceNote: 'audi.de (potencia, precio, rango de consumo). 0-100, peso y maletero de la versión de tracción delantera no confirmados; Audi llama a este motor "TFSI 150 kW", no "40 TFSI".'
+      }
+    ]
+  },
+  {
+    title: '3. Diésel de acceso',
+    models: [
+      {
+        id: 'bmw-318d', brand: 'BMW', name: 'BMW 318d Touring', fuel: 'Diésel (microhíbrido 48V)', drive: 'Trasera (RWD)',
+        powerKw: 110, powerPs: 150, torqueNm: 320, displacementCc: 1995, cylinders: 4,
+        transmission: '6 vel. manual u 8 vel. automática', accel0100: '8,9 (manual) / 9,0 (auto)', topSpeed: '215 – 217',
+        consumptionWltp: '5,0 – 5,7', co2Wltp: '132 – 149', bootVolume: '500 / 1.510 l',
+        lengthMm: 4709, widthMm: 1827, heightMm: 1455, wheelbaseMm: 2851, weightKg: 1650,
+        basePriceEur: null, discontinued: false,
+        officialUrl: 'https://www.bmw.de/de/neufahrzeuge/3er/bmw-3-er-touring/bmw-3er-touring-technische-daten.html',
+        sourceNote: 'angurten.de (bmw.de no accesible en el momento de la consulta). Potencia combinada con el generador de arranque integrado (ISG) de 48V: +8 kW/11 CV.'
+      },
+      {
+        id: 'audi-a4-35tdi', brand: 'Audi', name: 'Audi A4 Avant 35 TDI', fuel: 'Diésel', drive: 'Delantera (FWD)',
+        powerKw: 120, powerPs: 163, torqueNm: 370, displacementCc: 1968, cylinders: 4,
+        transmission: '7 velocidades S tronic', accel0100: 8.5, topSpeed: 210,
+        consumptionWltp: '4,9', co2Wltp: '128', bootVolume: '495 / 1.495 l',
+        lengthMm: 4762, widthMm: 1847, heightMm: 1435, wheelbaseMm: 2820, weightKg: 1605,
+        basePriceEur: 48050, discontinued: true, officialUrl: null,
+        sourceNote: 'ADAC (histórico). Producción finalizada 11/2023 — ya no se vende nuevo.'
+      },
+      {
+        id: 'audi-a5-tdi150', brand: 'Audi', name: 'Audi A5 Avant TDI 150', fuel: 'Diésel', drive: 'Delantera (FWD)',
+        powerKw: 150, powerPs: 204, torqueNm: 400, displacementCc: 1968, cylinders: 4,
+        transmission: '7 velocidades S tronic', accel0100: 7.7, topSpeed: 240,
+        consumptionWltp: '4,8', co2Wltp: '127', bootVolume: '448 / 1.396 l',
+        lengthMm: 4829, widthMm: 1860, heightMm: 1460, wheelbaseMm: 2892, weightKg: 1910,
+        basePriceEur: 58350, discontinued: false,
+        officialUrl: 'https://www.audi.de/de/neuwagen/a5/a5-avant/',
+        sourceNote: 'audi.de + ADAC. Aviso: Audi solo comercializa un diésel Avant (150 kW/204 CV) — esta fila y "A5 Avant TDI 204" son técnicamente el mismo motor, mostrado dos veces a petición para respetar las categorías solicitadas.'
+      }
+    ]
+  },
+  {
+    title: '4. Diésel de 190-204 CV',
+    models: [
+      {
+        id: 'bmw-320d', brand: 'BMW', name: 'BMW 320d Touring', fuel: 'Diésel (microhíbrido 48V)', drive: 'Trasera (RWD)',
+        powerKw: 140, powerPs: 190, torqueNm: 400, displacementCc: 1995, cylinders: 4,
+        transmission: '8 velocidades Steptronic automática', accel0100: 7.1, topSpeed: 230,
+        consumptionWltp: '5,0 – 5,7', co2Wltp: '132 – 150', bootVolume: '500 / 1.510 l',
+        lengthMm: 4709, widthMm: 1827, heightMm: 1455, wheelbaseMm: 2851, weightKg: 1705,
+        basePriceEur: 57200, discontinued: false,
+        officialUrl: 'https://www.bmw.de/de/neufahrzeuge/3er/bmw-3-er-touring/bmw-3er-touring-technische-daten.html',
+        sourceNote: 'angurten.de (bmw.de no accesible en el momento de la consulta). Potencia de sistema con ISG de 48V: 148 kW/201 CV.'
+      },
+      {
+        id: 'audi-a4-40tdi', brand: 'Audi', name: 'Audi A4 Avant 40 TDI', fuel: 'Diésel', drive: 'Total (quattro)',
+        powerKw: 150, powerPs: 204, torqueNm: 400, displacementCc: 1968, cylinders: 4,
+        transmission: '7 velocidades S tronic', accel0100: 7.1, topSpeed: 210,
+        consumptionWltp: '5,3', co2Wltp: '139', bootVolume: '495 / 1.495 l',
+        lengthMm: 4762, widthMm: 1847, heightMm: 1435, wheelbaseMm: 2820, weightKg: 1700,
+        basePriceEur: 51550, discontinued: true, officialUrl: null,
+        sourceNote: 'ADAC (histórico). Solo se encontró la versión quattro de este motor en el A4; producción finalizada — ya no se vende nuevo.'
+      },
+      {
+        id: 'audi-a5-tdi204', brand: 'Audi', name: 'Audi A5 Avant TDI 204', fuel: 'Diésel', drive: 'Delantera (FWD)',
+        powerKw: 150, powerPs: 204, torqueNm: 400, displacementCc: 1968, cylinders: 4,
+        transmission: '7 velocidades S tronic', accel0100: 7.7, topSpeed: 240,
+        consumptionWltp: '4,8', co2Wltp: '127', bootVolume: '448 / 1.396 l',
+        lengthMm: 4829, widthMm: 1860, heightMm: 1460, wheelbaseMm: 2892, weightKg: 1910,
+        basePriceEur: 58350, discontinued: false,
+        officialUrl: 'https://www.audi.de/de/neuwagen/a5/a5-avant/',
+        sourceNote: 'audi.de + ADAC. Mismo motor que "A5 Avant TDI 150" (ver aviso arriba).'
+      }
+    ]
+  },
+  {
+    title: '5. Tracción total',
+    models: [
+      {
+        id: 'bmw-320d-xdrive', brand: 'BMW', name: 'BMW 320d xDrive Touring', fuel: 'Diésel (microhíbrido 48V)', drive: 'Total (xDrive)',
+        powerKw: 140, powerPs: 190, torqueNm: 400, displacementCc: 1995, cylinders: 4,
+        transmission: '8 velocidades Steptronic automática', accel0100: 7.4, topSpeed: 225,
+        consumptionWltp: '5,3 – 6,0', co2Wltp: '139 – 157', bootVolume: '500 / 1.510 l',
+        lengthMm: 4709, widthMm: 1827, heightMm: 1455, wheelbaseMm: 2851, weightKg: 1765,
+        basePriceEur: 59700, discontinued: false,
+        officialUrl: 'https://www.bmw.de/de/neufahrzeuge/3er/bmw-3-er-touring/bmw-3er-touring-technische-daten.html',
+        sourceNote: 'angurten.de (bmw.de no accesible en el momento de la consulta). Potencia de sistema con ISG de 48V: 148 kW/201 CV.'
+      },
+      {
+        id: 'audi-a5-tdi204q', brand: 'Audi', name: 'Audi A5 Avant TDI quattro 204', fuel: 'Diésel', drive: 'Total (quattro)',
+        powerKw: 150, powerPs: 204, torqueNm: 400, displacementCc: 1968, cylinders: 4,
+        transmission: '7 velocidades S tronic', accel0100: 6.9, topSpeed: 236,
+        consumptionWltp: '5,1', co2Wltp: '133', bootVolume: '448 / 1.396 l',
+        lengthMm: 4829, widthMm: 1860, heightMm: 1460, wheelbaseMm: 2892, weightKg: 1975,
+        basePriceEur: 60700, discontinued: false,
+        officialUrl: 'https://www.audi.de/de/neuwagen/a5/a5-avant/',
+        sourceNote: 'audi.de + ADAC.'
+      }
+    ]
+  }
+];
+
+const OM_ALL = OM_CATEGORIES.flatMap(c => c.models.map(m => Object.assign({}, m, { category: c.title })));
+const OM_PALETTE = ['#1d63c9', '#e0752a', '#1e9e4a', '#b31217', '#7c3aed', '#0891b2', '#d4a017', '#be185d', '#4b5563', '#0d9488'];
+let omSelected = new Set(OM_CATEGORIES[0].models.map(m => m.id));
+let omView = 'table';
+
+function omDimsText(m) {
+  if (!m.lengthMm || !m.widthMm || !m.heightMm) return null;
+  const f = n => new Intl.NumberFormat('de-DE').format(n);
+  return f(m.lengthMm) + ' × ' + f(m.widthMm) + ' × ' + f(m.heightMm) + ' mm';
+}
+
+function omNum(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return v;
+  const m = String(v).match(/-?\d+(?:[.,]\d+)?/);
+  if (!m) return null;
+  return parseFloat(m[0].replace(',', '.'));
+}
+
+// Empareja un anuncio capturado con uno de los 14 modelos oficiales por marca/modelo/
+// texto del título, para poder ofrecer el enlace "Comparar ficha oficial" desde el
+// anuncio. Es una heurística (los anuncios reales no traen un campo de tracción/acabado
+// estructurado), así que solo se usa para el enlace de acceso rápido, no para datos.
+function omMatchModel(ad) {
+  const make = (ad.make || '').toLowerCase();
+  const text = ((ad.title || '') + ' ' + (ad.model || '')).toLowerCase();
+  const has = kw => text.includes(kw);
+  const isDiesel = has('tdi') || has('318d') || has('320d') || /di[eé]sel/.test((ad.fuel || '').toLowerCase());
+  if (make.includes('bmw')) {
+    if (has('318i')) return 'bmw-318i';
+    if (has('320i')) return 'bmw-320i';
+    if (has('318d')) return 'bmw-318d';
+    if (has('320d')) return has('xdrive') ? 'bmw-320d-xdrive' : 'bmw-320d';
+    return null;
+  }
+  if (make.includes('audi')) {
+    if (!has('a4') && !has('a5')) return null;
+    const isA5 = has('a5');
+    const isQuattro = has('quattro');
+    const highTier = has('40') || (ad.powerPs && ad.powerPs >= 190);
+    if (isA5) {
+      if (isDiesel) return isQuattro ? 'audi-a5-tdi204q' : 'audi-a5-tdi204';
+      return highTier ? 'audi-a5-40tfsi' : 'audi-a5-35tfsi';
+    }
+    if (isDiesel) return highTier ? 'audi-a4-40tdi' : 'audi-a4-35tdi';
+    return highTier ? 'audi-a4-40tfsiq' : 'audi-a4-35tfsi';
+  }
+  return null;
+}
+
+function omOfficialLinkHtml(ad) {
+  const id = omMatchModel(ad);
+  if (!id) return '';
+  return '<a href="javascript:void(0)" class="official-model-link" onclick="goToOfficialModel(\'' + id + '\')">📋 Comparar ficha oficial</a>';
+}
+
+function goToOfficialModel(id) {
+  const cat = OM_CATEGORIES.find(c => c.models.some(m => m.id === id));
+  omSelected = new Set(cat ? cat.models.map(m => m.id) : [id]);
+  omView = 'table';
+  state.view = 'models';
+  save(); render();
+}
+
+function omRenderChecks() {
+  document.getElementById('omCheckGroups').innerHTML = OM_CATEGORIES.map(cat => `
+    <div class="om-cat">
+      <div class="om-cat-title">${esc(cat.title)}</div>
+      <div class="om-cat-models">
+        ${cat.models.map(m => `
+          <label class="om-check">
+            <input type="checkbox" ${omSelected.has(m.id) ? 'checked' : ''} onchange="omToggle('${m.id}', this.checked)">
+            <span>
+              <span class="om-brand-dot ${m.brand.toLowerCase()}"></span>
+              <strong>${esc(m.name)}</strong>
+              ${m.discontinued ? '<span class="om-badge-disc">Descatalogado</span>' : ''}
+            </span>
+          </label>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function omToggle(id, checked) {
+  if (checked) omSelected.add(id); else omSelected.delete(id);
+  omRenderBody();
+}
+function omSelectAll() { OM_ALL.forEach(m => omSelected.add(m.id)); omRenderChecks(); omRenderBody(); }
+function omSelectNone() { omSelected.clear(); omRenderChecks(); omRenderBody(); }
+function omSelectCurrentOnly() { omSelected.clear(); OM_ALL.filter(m => !m.discontinued).forEach(m => omSelected.add(m.id)); omRenderChecks(); omRenderBody(); }
+function omSetView(v) {
+  omView = v;
+  document.getElementById('omBtnTable').classList.toggle('active', v === 'table');
+  document.getElementById('omBtnSizes').classList.toggle('active', v === 'sizes');
+  omRenderBody();
+}
+
+function omFmtVal(row, m) {
+  const raw = row.get ? row.get(m) : m[row.key];
+  if (raw === null || raw === undefined || raw === '') return '<span style="color:var(--ink-soft)">—</span>';
+  if (row.fmt) { const v = row.fmt(raw); return v === null ? '<span style="color:var(--ink-soft)">—</span>' : esc(v); }
+  let out = esc(String(raw)) + (row.unit || '');
+  if (row.extra) out += esc(row.extra(m));
+  return out;
+}
+
+function omRenderTable(models) {
+  let h = '<div class="table-wrap"><table class="cmp">';
+  h += '<tr><th class="param">Parámetro</th>' + models.map(m => (
+    '<td class="car-head om-head">' +
+    '<div class="om-brand-line"><span class="om-brand-dot ' + m.brand.toLowerCase() + '"></span>' + esc(m.brand) + '</div>' +
+    '<div class="om-name-line">' + esc(m.name) + (m.discontinued ? '<span class="om-badge-disc">Descatalogado</span>' : '') + '</div>' +
+    (m.officialUrl ? '<a class="om-official-link" href="' + esc(m.officialUrl) + '" target="_blank" rel="noopener">Ver ficha oficial ↗</a>' : '<span class="om-no-link">Sin ficha vigente</span>') +
+    '</td>'
+  )).join('') + '</tr>';
+
+  OM_ROWS.forEach(row => {
+    let bestVal, worstVal;
+    if (row.compare) {
+      const nums = models.map(m => omNum(row.get ? row.get(m) : m[row.key]));
+      const valid = nums.filter(n => n !== null);
+      if (valid.length > 1 && new Set(valid).size > 1) {
+        bestVal = row.compare === 'max' ? Math.max(...valid) : Math.min(...valid);
+        worstVal = row.compare === 'max' ? Math.min(...valid) : Math.max(...valid);
+      }
+    }
+    h += '<tr><th class="param">' + esc(row.label) + '</th>' + models.map(m => {
+      const n = row.compare ? omNum(row.get ? row.get(m) : m[row.key]) : null;
+      let cls = '';
+      if (n !== null && bestVal !== undefined) {
+        if (n === bestVal) cls = ' class="om-best"';
+        else if (n === worstVal) cls = ' class="om-worst"';
+      }
+      return '<td' + cls + '>' + omFmtVal(row, m) + '</td>';
+    }).join('') + '</tr>';
+  });
+  h += '</table></div>';
+  return h;
+}
+
+// Comparación de tamaños al estilo carsized.com: siluetas de planta (rectángulos
+// redondeados aproximados, no la forma real de la carrocería) superpuestas a escala
+// real y alineadas por el morro, más una comparación de alturas en barras.
+function omRenderSizes(models) {
+  const withDims = models.filter(m => m.lengthMm && m.widthMm);
+  if (!withDims.length) {
+    return '<div class="panel"><p class="hint">Ningún modelo seleccionado tiene dimensiones disponibles.</p></div>';
+  }
+  const maxLength = Math.max(...withDims.map(m => m.lengthMm));
+  const maxWidth = Math.max(...withDims.map(m => m.widthMm));
+  const pad = 40;
+  const pxPerMm = 460 / maxLength;
+  const svgW = Math.round(maxWidth * pxPerMm + pad * 2);
+  const svgH = Math.round(maxLength * pxPerMm + pad * 2);
+  const cx = svgW / 2;
+
+  const order = withDims.map((m, i) => ({ m, i })).sort((a, b) => (b.m.lengthMm * b.m.widthMm) - (a.m.lengthMm * a.m.widthMm));
+  const rects = order.map(({ m, i }) => {
+    const w = m.widthMm * pxPerMm, l = m.lengthMm * pxPerMm;
+    const color = OM_PALETTE[i % OM_PALETTE.length];
+    return '<rect x="' + (cx - w / 2).toFixed(1) + '" y="' + pad + '" width="' + w.toFixed(1) + '" height="' + l.toFixed(1) + '" rx="' + (w * 0.22).toFixed(1) + '" ry="' + (l * 0.035).toFixed(1) + '" fill="' + color + '" fill-opacity="0.28" stroke="' + color + '" stroke-width="2"></rect>';
+  }).join('');
+
+  const rulerPx = 1000 * pxPerMm;
+  const ruler = '<line x1="' + pad + '" y1="' + (svgH - 14) + '" x2="' + (pad + rulerPx).toFixed(1) + '" y2="' + (svgH - 14) + '" stroke="var(--ink-soft)" stroke-width="2"></line>' +
+    '<text x="' + (pad + rulerPx / 2).toFixed(1) + '" y="' + (svgH - 20) + '" text-anchor="middle" font-size="11" fill="var(--ink-soft)">1 m</text>';
+
+  const svg = '<svg width="100%" viewBox="0 0 ' + svgW + ' ' + svgH + '" style="max-width:520px">' + rects + ruler + '</svg>';
+
+  const legend = withDims.map((m, i) => (
+    '<div class="om-legend-item"><span class="om-legend-swatch" style="background:' + OM_PALETTE[i % OM_PALETTE.length] + '"></span>' +
+    '<span><strong>' + esc(m.name) + '</strong><br>' + m.lengthMm + ' × ' + m.widthMm + ' × ' + (m.heightMm || '—') + ' mm</span></div>'
+  )).join('');
+
+  const maxH = Math.max(...withDims.map(m => m.heightMm || 0));
+  const heightBars = '<div class="om-height-bars"><p class="hint" style="margin:0 0 10px">Altura (mm)</p>' +
+    withDims.map((m, i) => {
+      const pct = maxH ? Math.round(((m.heightMm || 0) / maxH) * 100) : 0;
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+        '<span style="width:190px;font-size:12px" title="' + esc(m.name) + '">' + esc(m.name) + '</span>' +
+        '<div style="flex:1;background:var(--surface-2);border-radius:4px;overflow:hidden;height:14px">' +
+        '<div style="width:' + pct + '%;height:100%;background:' + OM_PALETTE[i % OM_PALETTE.length] + '"></div></div>' +
+        '<span style="width:60px;font-size:12px;text-align:right">' + (m.heightMm || '—') + ' mm</span></div>';
+    }).join('') + '</div>';
+
+  return '<div class="panel">' +
+    '<p class="hint">Siluetas de vista en planta a escala real (aproximadas, no la carrocería exacta), alineadas por el morro para comparar huella y anchura. Superpuestas con transparencia para ver el solapamiento.</p>' +
+    '<div class="om-sizes-wrap"><div class="om-size-svg-wrap">' + svg + '</div><div class="om-size-legend">' + legend + '</div></div>' +
+    heightBars + '</div>';
+}
+
+function omRenderBody() {
+  const wrap = document.getElementById('omBody');
+  const models = OM_ALL.filter(m => omSelected.has(m.id));
+  if (!models.length) { wrap.innerHTML = '<div class="panel"><p class="hint">Selecciona al menos un modelo arriba para comparar.</p></div>'; return; }
+  wrap.innerHTML = omView === 'sizes' ? omRenderSizes(models) : omRenderTable(models);
+}
+
+function renderOfficialModels() {
+  omRenderChecks();
+  omRenderBody();
 }
 
 function renderCriteriaChips() {
@@ -1909,6 +2357,7 @@ function renderCards() {
       '</div>' +
       '<div class="footer">' +
       (ad.url ? '<a class="adlink" href="' + esc(ad.url) + '" target="_blank" rel="noopener">Ver anuncio ↗</a>' : '') +
+      omOfficialLinkHtml(ad) +
       '<span class="seller-line">' + editableField(ad, 'sellerName', 'text') + '</span>' +
       '<button class="danger" onclick="removeAd(' + ad.id + ')" title="Quitar">✕</button>' +
       '</div>' +
@@ -1946,6 +2395,7 @@ function renderTable() {
       '<div class="score-bar"><i style="width:' + (ev.score || 0) + '%;background:' + barColor + '"></i></div></div>' +
       '<div class="head-actions">' +
       (ad.url ? '<a class="adlink" href="' + esc(ad.url) + '" target="_blank" rel="noopener">Ver anuncio ↗</a>' : '') +
+      omOfficialLinkHtml(ad) +
       '<button class="danger" onclick="removeAd(' + ad.id + ')">Quitar</button></div>' +
       '</td>';
   });
@@ -2225,6 +2675,9 @@ document.getElementById('btnViewMap').addEventListener('click', () => {
 });
 document.getElementById('btnViewSearch').addEventListener('click', () => {
   state.view = 'search'; save(); render();
+});
+document.getElementById('btnViewModels').addEventListener('click', () => {
+  state.view = 'models'; save(); render();
 });
 
 /* ---------- theme (claro/oscuro) ---------- */
