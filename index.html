@@ -490,6 +490,16 @@
   .om-legend-item { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; }
   .om-legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex: none; margin-top: 2px; }
   .om-height-bars { padding: 0 20px 20px; }
+
+  /* Coste final */
+  .label-soft { color: var(--ink-soft); font-size: 12px; }
+  .fc-import-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 10px; }
+  .fc-layout { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(380px, 1.3fr); gap: 20px; align-items: start; }
+  .fc-layout .fc-col-map { position: sticky; top: 16px; }
+  @media (max-width: 900px) {
+    .fc-layout { grid-template-columns: 1fr; }
+    .fc-layout .fc-col-map { position: static; }
+  }
 </style>
 <script>
   (function () {
@@ -514,6 +524,7 @@
         <button id="btnViewMap">Mapa</button>
         <button id="btnViewSearch">Búsqueda<span id="searchTabCount" class="tab-count" hidden></span></button>
         <button id="btnViewModels">Modelos oficiales</button>
+        <button id="btnViewFinalCost">Coste final</button>
       </div>
       <button id="btnTheme" title="Cambiar tema"></button>
       <button id="btnPrefs">Preferencias</button>
@@ -659,6 +670,21 @@
     <p class="hint">El Audi A4 Avant ya no se vende nuevo (sustituido por la nueva gama A5 Avant). El A5 Avant diésel de Audi solo existe con un motor (150 kW/204 CV) — las filas "TDI 150" y "TDI 204" muestran los mismos datos técnicos a propósito. Verifica precios y consumos en la configuradora oficial antes de decidir.</p>
   </div>
 
+  <div id="finalCostArea" hidden>
+    <section class="panel">
+      <div class="panel-header">
+        <p class="eyebrow">Coste final puesto en España</p>
+        <button type="button" onclick="fcToggleSettings()">⚙ Configurar valores por defecto</button>
+      </div>
+      <p class="hint">Elige uno de tus coches guardados en Tarjetas; se importan su precio, sus emisiones de CO₂ y su ubicación para calcular el impuesto de matriculación español y una estimación del resto de gastos de traerlo a España.</p>
+      <div id="fcSettingsPanel" hidden></div>
+      <div class="row-actions">
+        <label>Coche: <select id="fcCarSelect" onchange="fcSelectCar(this.value)"></select></label>
+      </div>
+    </section>
+    <div id="fcBody"></div>
+  </div>
+
   <section class="panel" id="recPanel" hidden>
     <p class="eyebrow">Recomendaciones</p>
     <ul class="rec-list" id="recList"></ul>
@@ -711,6 +737,52 @@ function defaultColumns() {
   return cols;
 }
 
+// Valores por defecto de los conceptos de "Coste final" (traer un coche de Alemania
+// a España): son orientativos, el usuario los ajusta con el botón de configuración.
+function defaultCostConfig() {
+  return {
+    exportPlates: 300, tempInsurance: 0, flight: 100, fuel: 300, tolls: 150,
+    hotel: 100, itv: 220, registration: 100, plates: 40, gestoria: 150, reducedFile: 0,
+    fuelPricePerL: 1.6, tollPerKm: 0.07
+  };
+}
+const FINAL_COST_FIELDS = [
+  { key: 'exportPlates', label: 'Placas de exportación' },
+  { key: 'tempInsurance', label: 'Seguro temporal' },
+  { key: 'flight', label: 'Vuelo' },
+  { key: 'fuel', label: 'Combustible' },
+  { key: 'tolls', label: 'Peajes' },
+  { key: 'hotel', label: 'Hotel' },
+  { key: 'itv', label: 'ITV' },
+  { key: 'registration', label: 'Matriculación' },
+  { key: 'plates', label: 'Placas' },
+  { key: 'gestoria', label: 'Gestoría' },
+  { key: 'reducedFile', label: 'Ficha reducida' }
+];
+// Parámetros por km usados para calcular automáticamente Combustible y Peajes a partir
+// de la distancia al aeropuerto elegido; se configuran aparte porque son un precio por
+// unidad (€/l, €/km), no un importe fijo como el resto de conceptos.
+const FINAL_COST_RATE_FIELDS = [
+  { key: 'fuelPricePerL', label: 'Precio combustible (€/l)', step: '0.01' },
+  { key: 'tollPerKm', label: 'Coste peajes (€/km)', step: '0.01' }
+];
+
+// Aeropuertos alemanes/fronterizos habituales para traer el coche por avión + carretera,
+// con distancia y tiempo de conducción aproximados hasta Madrid (estimación orientativa
+// a partir de rutas típicas por autopista, no un cálculo de rutas en tiempo real).
+const AIRPORTS = [
+  { code: 'FRA', name: 'Fráncfort', lat: 50.0379, lon: 8.5622, kmToMadrid: 2100, hoursToMadrid: 19.5 },
+  { code: 'MUC', name: 'Múnich', lat: 48.3538, lon: 11.7861, kmToMadrid: 2350, hoursToMadrid: 21 },
+  { code: 'DUS', name: 'Düsseldorf', lat: 51.2895, lon: 6.7668, kmToMadrid: 2100, hoursToMadrid: 19.5 },
+  { code: 'HAM', name: 'Hamburgo', lat: 53.6304, lon: 9.9882, kmToMadrid: 2500, hoursToMadrid: 22.5 },
+  { code: 'NRN', name: 'Weeze', lat: 51.6023, lon: 6.1423, kmToMadrid: 2150, hoursToMadrid: 19.75 },
+  { code: 'BSL', name: 'EuroAirport Basilea-Mulhouse-Friburgo', lat: 47.5896, lon: 7.5299, kmToMadrid: 1650, hoursToMadrid: 15 },
+  { code: 'SXB', name: 'Estrasburgo', lat: 48.5383, lon: 7.6282, kmToMadrid: 1750, hoursToMadrid: 16 },
+  { code: 'LUX', name: 'Luxemburgo', lat: 49.6233, lon: 6.2044, kmToMadrid: 1900, hoursToMadrid: 17.5 },
+  { code: 'EIN', name: 'Eindhoven', lat: 51.45, lon: 5.3745, kmToMadrid: 1950, hoursToMadrid: 18 }
+];
+const MADRID_COORDS = [40.4168, -3.7038];
+
 let state; // assigned near the bottom of the script, once ROW_DEFS exists
 
 function mergePrefs(saved) {
@@ -735,7 +807,8 @@ function load() {
   } catch (e) { /* corrupted -> start fresh */ }
   s.prefs = mergePrefs(s.prefs);
   s.columns = Object.assign(defaultColumns(), s.columns || {});
-  s.view = ['table', 'map', 'search'].includes(s.view) ? s.view : 'cards';
+  s.costConfig = Object.assign(defaultCostConfig(), s.costConfig || {});
+  s.view = ['table', 'map', 'search', 'models', 'finalcost'].includes(s.view) ? s.view : 'cards';
   return s;
 }
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -1470,6 +1543,7 @@ function render() {
   if (state.view === 'table') renderTable();
   else if (state.view === 'map') renderMap();
   else if (state.view === 'models') renderOfficialModels();
+  else if (state.view === 'finalcost') renderFinalCost();
   else if (state.view !== 'search') renderCards();
   renderRecs();
   renderPrefs();
@@ -1482,17 +1556,19 @@ function applyViewToggle() {
   document.getElementById('tableArea').hidden = v !== 'table';
   document.getElementById('mapArea').hidden = v !== 'map';
   document.getElementById('modelsArea').hidden = v !== 'models';
+  document.getElementById('finalCostArea').hidden = v !== 'finalcost';
   document.getElementById('btnViewCards').classList.toggle('active', v === 'cards');
   document.getElementById('btnViewTable').classList.toggle('active', v === 'table');
   document.getElementById('btnViewMap').classList.toggle('active', v === 'map');
   document.getElementById('btnViewSearch').classList.toggle('active', v === 'search');
   document.getElementById('btnViewModels').classList.toggle('active', v === 'models');
+  document.getElementById('btnViewFinalCost').classList.toggle('active', v === 'finalcost');
 
-  // "Búsqueda" y "Modelos oficiales" son pestañas aparte: cuando alguna está activa,
-  // el resto de secciones del comparador detallado (criterios activos y recomendaciones)
-  // no aplican y se ocultan. La visibilidad del propio panel de búsqueda la gestiona
-  // renderSearchResults().
-  if (v === 'search' || v === 'models') {
+  // "Búsqueda", "Modelos oficiales" y "Coste final" son pestañas aparte: cuando alguna
+  // está activa, el resto de secciones del comparador detallado (criterios activos y
+  // recomendaciones) no aplican y se ocultan. La visibilidad del propio panel de
+  // búsqueda la gestiona renderSearchResults().
+  if (v === 'search' || v === 'models' || v === 'finalcost') {
     document.getElementById('criteriaBar').hidden = true;
     document.getElementById('recPanel').hidden = true;
   }
@@ -1889,6 +1965,270 @@ function omRenderBody() {
 function renderOfficialModels() {
   omRenderChecks();
   omRenderBody();
+}
+
+/* ---------- Coste final (traer el coche a España) ---------- */
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function fcNearestAirport(coords) {
+  if (!coords) return null;
+  let best = null, bestDist = Infinity;
+  for (const ap of AIRPORTS) {
+    const d = haversineKm(coords[0], coords[1], ap.lat, ap.lon);
+    if (d < bestDist) { bestDist = d; best = ap; }
+  }
+  return best;
+}
+
+// Inicializa (una vez) el estado de coste final de un anuncio, partiendo de los
+// valores por defecto configurables. Vive dentro del propio ad para que cada coche
+// guarde su propio cálculo (se publica junto al resto de datos en cars.json).
+function fcGetState(ad) {
+  if (!ad.finalCost) {
+    ad.finalCost = { airportCode: null, fields: Object.assign({}, state.costConfig) };
+  }
+  return ad.finalCost;
+}
+
+function fcSelectCar(id) {
+  state.finalCostSelectedId = id || null;
+  save();
+  renderFinalCost();
+}
+
+// Recalcula combustible y peajes a partir de la distancia del aeropuerto elegido;
+// se usa tanto al elegir un aeropuerto a mano como al sugerir el más cercano.
+function fcRecalcAutoFields(ad, fc, ap) {
+  if (!ap) return;
+  const consumption = parseConsumptionValue(ad);
+  if (consumption) fc.fields.fuel = Math.round(ap.kmToMadrid * (consumption / 100) * state.costConfig.fuelPricePerL);
+  fc.fields.tolls = Math.round(ap.kmToMadrid * state.costConfig.tollPerKm);
+}
+
+// Fija el aeropuerto elegido: aplica de inmediato la estimación por distancia en línea
+// recta (fcRecalcAutoFields) para no dejar la UI en blanco, y en paralelo pide la ruta
+// real por carretera a OSRM (servicio público, sin clave) para dibujarla en el mapa y
+// afinar combustible/peajes con el kilometraje real en cuanto llega.
+function fcSetAirport(ad, fc, ap) {
+  fc.airportCode = ap ? ap.code : null;
+  fc.route = null;
+  fcRecalcAutoFields(ad, fc, ap);
+  save();
+  if (ap) fcLoadRoute(ad, ap);
+}
+
+function fcApplyAirport(adId, code) {
+  const ad = state.ads.find(a => String(a.id) === String(adId));
+  if (!ad) return;
+  const fc = fcGetState(ad);
+  fcSetAirport(ad, fc, AIRPORTS.find(a => a.code === code));
+  renderFinalCost();
+}
+
+async function fcFetchRoute(fromLat, fromLon, toLat, toLon) {
+  try {
+    const url = 'https://router.project-osrm.org/route/v1/driving/' + fromLon + ',' + fromLat + ';' + toLon + ',' + toLat + '?overview=simplified&geometries=geojson';
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const route = data.routes && data.routes[0];
+    if (!route) return null;
+    return {
+      coords: route.geometry.coordinates.map(c => [c[1], c[0]]),
+      km: Math.round(route.distance / 1000),
+      hours: route.duration / 3600
+    };
+  } catch (e) { return null; }
+}
+
+async function fcLoadRoute(ad, ap) {
+  const routed = await fcFetchRoute(ap.lat, ap.lon, MADRID_COORDS[0], MADRID_COORDS[1]);
+  const fc = fcGetState(ad);
+  if (fc.airportCode !== ap.code) return; // se cambió de aeropuerto mientras se cargaba la ruta
+  if (routed) {
+    fc.route = routed;
+    const consumption = parseConsumptionValue(ad);
+    if (consumption) fc.fields.fuel = Math.round(routed.km * (consumption / 100) * state.costConfig.fuelPricePerL);
+    fc.fields.tolls = Math.round(routed.km * state.costConfig.tollPerKm);
+    save();
+  }
+  if (state.view === 'finalcost' && String(state.finalCostSelectedId) === String(ad.id)) renderFinalCost();
+}
+
+function fcUpdateField(adId, key, value) {
+  const ad = state.ads.find(a => String(a.id) === String(adId));
+  if (!ad) return;
+  const fc = fcGetState(ad);
+  fc.fields[key] = parseFloat(value) || 0;
+  save();
+  fcUpdateTotal(ad);
+}
+
+function fcUpdateTotal(ad) {
+  const fc = fcGetState(ad);
+  const taxAmount = registrationTaxAmount(ad) || 0;
+  const price = ad.priceGross || 0;
+  const sumFields = FINAL_COST_FIELDS.reduce((s, f) => s + (fc.fields[f.key] || 0), 0);
+  const el = document.getElementById('fcTotal');
+  if (el) el.textContent = fmtEUR.format(price + taxAmount + sumFields);
+}
+
+function fcToggleSettings() {
+  const p = document.getElementById('fcSettingsPanel');
+  p.hidden = !p.hidden;
+  if (!p.hidden) fcRenderSettings();
+}
+function fcRenderSettings() {
+  document.getElementById('fcSettingsPanel').innerHTML =
+    '<table class="pref-table"><thead><tr><th>Concepto</th><th>Valor por defecto (€)</th></tr></thead><tbody>' +
+    FINAL_COST_FIELDS.map(f => '<tr><td>' + esc(f.label) + '</td><td style="width:140px">' +
+      '<input type="number" step="1" value="' + state.costConfig[f.key] + '" onchange="fcUpdateDefault(\'' + f.key + '\', this.value)">' +
+      '</td></tr>').join('') +
+    '</tbody></table>' +
+    '<table class="pref-table" style="margin-top:14px"><thead><tr><th>Parámetro de cálculo automático</th><th>Valor</th></tr></thead><tbody>' +
+    FINAL_COST_RATE_FIELDS.map(f => '<tr><td>' + esc(f.label) + '</td><td style="width:140px">' +
+      '<input type="number" step="' + f.step + '" value="' + state.costConfig[f.key] + '" onchange="fcUpdateDefault(\'' + f.key + '\', this.value)">' +
+      '</td></tr>').join('') +
+    '</tbody></table>' +
+    '<p class="hint" style="margin-top:8px">Estos dos se usan para recalcular Combustible y Peajes cada vez que eliges o cambias el aeropuerto en un coche.</p>' +
+    '<p class="hint">Estos son los valores de partida para un coche que todavía no tenga su propio cálculo de coste final. Se guardan junto con el resto de datos (se publican en cars.json).</p>';
+}
+function fcUpdateDefault(key, value) {
+  state.costConfig[key] = parseFloat(value) || 0;
+  save();
+}
+
+let fcMapInstance = null;
+function fcRenderMap(ad, coords, fc) {
+  const el = document.getElementById('fcMap');
+  if (!el || typeof L === 'undefined') { if (el) el.innerHTML = '<p class="hint" style="padding:16px">No se pudo cargar el mapa.</p>'; return; }
+  if (fcMapInstance) { fcMapInstance.remove(); fcMapInstance = null; }
+  fcMapInstance = L.map(el).setView(coords, 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 18
+  }).addTo(fcMapInstance);
+
+  const bounds = [coords, MADRID_COORDS];
+  L.circleMarker(coords, { radius: 9, color: '#fff', weight: 2, fillColor: '#1e9e4a', fillOpacity: 0.95 }).addTo(fcMapInstance)
+    .bindPopup('<strong>' + esc(ad.title) + '</strong><br>' + esc(ad.location || ''));
+
+  AIRPORTS.forEach(ap => {
+    const isSel = ap.code === fc.airportCode;
+    L.circleMarker([ap.lat, ap.lon], { radius: isSel ? 9 : 6, color: '#fff', weight: 1.5, fillColor: isSel ? '#e0752a' : '#0891b2', fillOpacity: 0.9 })
+      .addTo(fcMapInstance)
+      .bindPopup('<strong>' + esc(ap.name) + ' (' + ap.code + ')</strong><br>' + ap.kmToMadrid + ' km · ' + ap.hoursToMadrid + ' h aprox. a Madrid');
+    bounds.push([ap.lat, ap.lon]);
+  });
+
+  L.circleMarker(MADRID_COORDS, { radius: 8, color: '#fff', weight: 2, fillColor: '#7c3aed', fillOpacity: 0.95 }).addTo(fcMapInstance).bindPopup('<strong>Madrid</strong>');
+
+  // Ruta recomendada: si ya llegó la ruta real por carretera (OSRM) se dibuja el trazado
+  // completo; mientras se carga (o si el servicio no responde) se ve una línea recta
+  // discontinua de aeropuerto a Madrid como referencia provisional.
+  if (fc.airportCode) {
+    const ap = AIRPORTS.find(a => a.code === fc.airportCode);
+    if (ap) {
+      if (fc.route && fc.route.coords && fc.route.coords.length) {
+        L.polyline(fc.route.coords, { color: '#e0752a', weight: 4 }).addTo(fcMapInstance).bindPopup('Ruta recomendada · ' + fc.route.km + ' km');
+      } else {
+        L.polyline([[ap.lat, ap.lon], MADRID_COORDS], { color: '#e0752a', weight: 3, dashArray: '6 8' }).addTo(fcMapInstance);
+      }
+    }
+  }
+
+  setTimeout(() => {
+    fcMapInstance.invalidateSize();
+    fcMapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 8 });
+  }, 50);
+}
+
+function renderFinalCost() {
+  const ads = regularAds();
+  const sel = document.getElementById('fcCarSelect');
+  sel.innerHTML = '<option value="">— Selecciona un coche —</option>' +
+    ads.map(a => '<option value="' + a.id + '"' + (String(a.id) === String(state.finalCostSelectedId) ? ' selected' : '') + '>' + esc(a.title) + '</option>').join('');
+
+  const body = document.getElementById('fcBody');
+  const ad = ads.find(a => String(a.id) === String(state.finalCostSelectedId));
+  if (!ad) {
+    body.innerHTML = '<div class="panel"><p class="hint">Selecciona arriba uno de tus coches guardados en Tarjetas para calcular su coste final puesto en España.</p></div>';
+    return;
+  }
+
+  const co2 = parseCo2Value(ad);
+  const missing = [];
+  if (ad.priceGross === null || ad.priceGross === undefined) missing.push('Precio');
+  if (co2 === null) missing.push('Emisiones de CO₂');
+  if (!ad.location) missing.push('Ubicación');
+
+  let h = '';
+  if (missing.length) {
+    h += '<div class="panel"><p class="hint" style="color:var(--bad-text)">⚠ Faltan datos en este anuncio: <strong>' +
+      missing.map(esc).join(', ') + '</strong>. Revísalos en la vista Tarjetas o Tabla (icono ✎) y vuelve a esta pestaña.</p></div>';
+  }
+
+  const taxRate = registrationTaxRate(co2);
+  const taxAmount = registrationTaxAmount(ad);
+  const coords = estimateApproxCoords(ad.location);
+  const fc = fcGetState(ad);
+  if (!fc.airportCode && coords) {
+    const nearest = fcNearestAirport(coords);
+    if (nearest) fcSetAirport(ad, fc, nearest);
+  }
+
+  const importedHtml = '<section class="panel">' +
+    '<h3 style="margin-top:0">Datos importados del anuncio</h3>' +
+    '<div class="fc-import-grid">' +
+    '<div><span class="label-soft">Precio del anuncio</span><br><strong>' + (ad.priceGross != null ? fmtEUR.format(ad.priceGross) : '—') + '</strong></div>' +
+    '<div><span class="label-soft">Emisiones CO₂</span><br><strong>' + (ad.co2Emissions ? esc(ad.co2Emissions) : '—') + '</strong></div>' +
+    '<div><span class="label-soft">Ubicación</span><br><strong>' + (ad.location ? esc(ad.location) : '—') + '</strong></div>' +
+    '</div>' +
+    (taxRate !== null ? '<p class="hint" style="margin-top:12px">Impuesto de matriculación (España): <strong>' + taxRate + '%</strong> sobre el precio del anuncio → <strong>' + fmtEUR.format(taxAmount) + '</strong></p>' : '') +
+    '</section>';
+
+  const gastosHtml = '<section class="panel"><h3 style="margin-top:0">Gastos de importación y matriculación en España</h3>' +
+    '<table class="pref-table"><tbody id="fcFieldsBody"></tbody></table>' +
+    '<div class="row-actions" style="justify-content:flex-end;margin-top:14px">' +
+    '<span style="font-size:15px">Precio total puesto en España: <strong id="fcTotal" style="font:600 20px var(--font-mono)"></strong></span>' +
+    '</div>' +
+    '</section>';
+
+  if (coords) {
+    const ap = fc.airportCode ? AIRPORTS.find(a => a.code === fc.airportCode) : null;
+    const km = fc.route ? fc.route.km : (ap ? ap.kmToMadrid : null);
+    const hours = fc.route ? fc.route.hours : (ap ? ap.hoursToMadrid : null);
+    const routeSourceNote = fc.route ? 'ruta real por carretera' : 'estimación en línea recta por autopista, cargando la ruta real…';
+    const mapHtml = '<section class="panel">' +
+      '<h3 style="margin-top:0">Aeropuerto de vuelta y ruta a Madrid</h3>' +
+      '<div class="row-actions"><label>Aeropuerto: <select id="fcAirportSelect" onchange="fcApplyAirport(' + JSON.stringify(String(ad.id)) + ', this.value)">' +
+      '<option value="">— Elige un aeropuerto —</option>' +
+      AIRPORTS.map(a2 => '<option value="' + a2.code + '"' + (fc.airportCode === a2.code ? ' selected' : '') + '>' + esc(a2.name) + ' (' + a2.code + ')</option>').join('') +
+      '</select></label></div>' +
+      '<div id="fcMap" style="height:460px;border-radius:10px;overflow:hidden;margin-top:10px"></div>' +
+      (ap ? '<p class="hint" style="margin-top:8px">Distancia hasta Madrid: <strong>' + km + ' km</strong> · ~' + hours.toFixed(1) +
+        ' h en coche (' + routeSourceNote + '). El combustible y los peajes se han calculado a partir de esta distancia' +
+        (parseConsumptionValue(ad) ? ' y el consumo del anuncio' : ' — sin dato de consumo en el anuncio, ajusta el combustible a mano') + '.</p>' : '') +
+      '</section>';
+
+    h += '<div class="fc-layout"><div class="fc-col-gastos">' + importedHtml + gastosHtml + '</div><div class="fc-col-map">' + mapHtml + '</div></div>';
+  } else {
+    h += importedHtml + gastosHtml;
+  }
+
+  body.innerHTML = h;
+
+  document.getElementById('fcFieldsBody').innerHTML = FINAL_COST_FIELDS.map(f =>
+    '<tr><td>' + esc(f.label) + '</td><td style="width:140px">' +
+    '<input type="number" step="1" value="' + (fc.fields[f.key] ?? 0) + '" oninput="fcUpdateField(' + JSON.stringify(String(ad.id)) + ', \'' + f.key + '\', this.value)">' +
+    '</td></tr>'
+  ).join('');
+
+  fcUpdateTotal(ad);
+  if (coords) fcRenderMap(ad, coords, fc);
 }
 
 function renderCriteriaChips() {
@@ -2678,6 +3018,9 @@ document.getElementById('btnViewSearch').addEventListener('click', () => {
 });
 document.getElementById('btnViewModels').addEventListener('click', () => {
   state.view = 'models'; save(); render();
+});
+document.getElementById('btnViewFinalCost').addEventListener('click', () => {
+  state.view = 'finalcost'; save(); render();
 });
 
 /* ---------- theme (claro/oscuro) ---------- */
