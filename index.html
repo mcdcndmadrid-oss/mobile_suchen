@@ -1819,6 +1819,67 @@ function omOfficialLinkHtml(ad) {
   return '<a href="javascript:void(0)" class="official-model-link" onclick="goToOfficialModel(\'' + id + '\')">📋 Comparar ficha oficial</a>';
 }
 
+// Campos técnicos que se pueden rellenar desde la ficha oficial (nunca datos propios
+// del ejemplar concreto: km, año, precio, ubicación, propietarios...).
+function omMatchedModel(ad) {
+  const id = omMatchModel(ad);
+  return id ? OM_ALL.find(m => m.id === id) : null;
+}
+function omGuessTransmissionLabel(m) {
+  return (m.transmission || '').toLowerCase().includes('manual') ? 'Manual' : 'Automático';
+}
+function omGuessFuelLabel(m) {
+  const f = (m.fuel || '').toLowerCase();
+  return (f.includes('diésel') || f.includes('diesel')) ? 'Diésel' : 'Gasolina';
+}
+function omHasFillableGaps(ad) {
+  const m = omMatchedModel(ad);
+  if (!m) return false;
+  return !ad.powerPs || !ad.cubicCapacity || !ad.cylinder || !ad.transmission || !ad.fuel || !ad.co2Emissions || !ad.energyConsumption;
+}
+function omFillLinkHtml(ad) {
+  if (!omHasFillableGaps(ad)) return '';
+  return '<a href="javascript:void(0)" class="official-model-link" onclick="fillFromOfficialModel(' + JSON.stringify(String(ad.id)) + ')">🔧 Rellenar huecos con ficha oficial</a>';
+}
+
+// Rellena solo los campos técnicos VACÍOS del anuncio con los datos del modelo oficial
+// equivalente (omMatchModel), sin tocar nunca datos ya presentes ni datos propios del
+// ejemplar (kilometraje, año, precio, ubicación...). Marca cada campo rellenado como
+// "editado" para que se vea igual que una edición manual y quede claro que no viene
+// de mobile.de.
+function fillFromOfficialModel(adId) {
+  const ad = state.ads.find(a => String(a.id) === String(adId));
+  if (!ad) return;
+  const m = omMatchedModel(ad);
+  if (!m) { alert('No se encontró un modelo oficial equivalente para este anuncio.'); return; }
+
+  const filledKeys = [];
+  const set = (key, val) => {
+    if ((ad[key] === null || ad[key] === undefined || ad[key] === '') && val !== null && val !== undefined) {
+      ad[key] = val; filledKeys.push(key);
+    }
+  };
+  set('powerPs', m.powerPs);
+  set('cubicCapacity', m.displacementCc);
+  set('cylinder', m.cylinders);
+  set('transmission', omGuessTransmissionLabel(m));
+  set('fuel', omGuessFuelLabel(m));
+  if (!ad.co2Emissions) {
+    const n = omNum(m.co2Wltp);
+    if (n !== null) { ad.co2Emissions = Math.round(n) + ' g/km'; filledKeys.push('co2Emissions'); }
+  }
+  if (!ad.energyConsumption) {
+    const n = omNum(m.consumptionWltp);
+    if (n !== null) { ad.energyConsumption = String(n).replace('.', ',') + ' l/100km'; filledKeys.push('energyConsumption'); }
+  }
+
+  if (!filledKeys.length) { alert('Este anuncio ya tiene esos datos completos (o el modelo oficial tampoco los tiene).'); return; }
+  ad._edited = ad._edited || {};
+  filledKeys.forEach(k => ad._edited[k] = true);
+  save(); render();
+  alert('Rellenado desde "' + m.name + '": ' + filledKeys.length + ' campo(s).');
+}
+
 function goToOfficialModel(id) {
   const cat = OM_CATEGORIES.find(c => c.models.some(m => m.id === id));
   omSelected = new Set(cat ? cat.models.map(m => m.id) : [id]);
@@ -2697,7 +2758,7 @@ function renderCards() {
       '</div>' +
       '<div class="footer">' +
       (ad.url ? '<a class="adlink" href="' + esc(ad.url) + '" target="_blank" rel="noopener">Ver anuncio ↗</a>' : '') +
-      omOfficialLinkHtml(ad) +
+      omOfficialLinkHtml(ad) + omFillLinkHtml(ad) +
       '<span class="seller-line">' + editableField(ad, 'sellerName', 'text') + '</span>' +
       '<button class="danger" onclick="removeAd(' + ad.id + ')" title="Quitar">✕</button>' +
       '</div>' +
@@ -2735,7 +2796,7 @@ function renderTable() {
       '<div class="score-bar"><i style="width:' + (ev.score || 0) + '%;background:' + barColor + '"></i></div></div>' +
       '<div class="head-actions">' +
       (ad.url ? '<a class="adlink" href="' + esc(ad.url) + '" target="_blank" rel="noopener">Ver anuncio ↗</a>' : '') +
-      omOfficialLinkHtml(ad) +
+      omOfficialLinkHtml(ad) + omFillLinkHtml(ad) +
       '<button class="danger" onclick="removeAd(' + ad.id + ')">Quitar</button></div>' +
       '</td>';
   });
@@ -2920,7 +2981,15 @@ function upsertRecords(recs) {
   let added = 0, updated = 0;
   for (const rec of recs) {
     const existing = state.ads.findIndex(a => String(a.id) === String(rec.id));
-    if (existing >= 0) { state.ads[existing] = rec; updated++; }
+    if (existing >= 0) {
+      // Si ya teníamos este anuncio capturado en detalle (individual, no de búsqueda),
+      // una importación masiva de búsqueda NO debe sustituirlo por su versión resumida:
+      // eso lo degradaría a "Búsqueda" y le haría perder todos sus datos completos
+      // (y de paso quedaría expuesto a "Vaciar resultados de búsqueda", que solo debe
+      // tocar la tabla de búsqueda, nunca los anuncios guardados en Tarjetas/Tabla).
+      if (!state.ads[existing].fromSearch && rec.fromSearch) continue;
+      state.ads[existing] = rec; updated++;
+    }
     else { state.ads.push(rec); added++; }
   }
   save();
