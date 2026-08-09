@@ -500,6 +500,21 @@
     .fc-layout { grid-template-columns: 1fr; }
     .fc-layout .fc-col-map { position: static; }
   }
+  .fc-hero { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+  .fc-hero-photo-wrap {
+    width: 220px; height: 150px; border-radius: 10px; flex: none; position: relative; overflow: hidden;
+    background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 10px, var(--surface-3) 10px, var(--surface-3) 20px);
+  }
+  .fc-hero-photo-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .fc-hero-info { flex: 1; min-width: 220px; }
+  .fc-hero-title { font: 700 18px/1.3 var(--font-display); margin-bottom: 12px; }
+  .fc-hero-total-label { color: var(--ink-soft); font-size: 13px; }
+  .fc-hero-total-value { font: 700 40px var(--font-mono); letter-spacing: -.02em; color: var(--accent-bright); line-height: 1.15; }
+  .fc-tax-highlight {
+    display: inline-flex; align-items: baseline; gap: 8px; margin-top: 14px; padding: 10px 16px;
+    border-radius: 8px; background: var(--warn-bg); color: var(--warn-text); font-size: 14px;
+  }
+  .fc-tax-highlight strong { font: 700 22px var(--font-mono); }
 </style>
 <script>
   (function () {
@@ -2134,8 +2149,11 @@ function fcUpdateTotal(ad) {
   const taxAmount = registrationTaxAmount(ad) || 0;
   const price = ad.priceGross || 0;
   const sumFields = FINAL_COST_FIELDS.reduce((s, f) => s + (fc.fields[f.key] || 0), 0);
+  const totalText = fmtEUR.format(price + taxAmount + sumFields);
   const el = document.getElementById('fcTotal');
-  if (el) el.textContent = fmtEUR.format(price + taxAmount + sumFields);
+  if (el) el.textContent = totalText;
+  const heroEl = document.getElementById('fcTotalHero');
+  if (heroEl) heroEl.textContent = totalText;
 }
 
 function fcToggleSettings() {
@@ -2241,6 +2259,17 @@ function renderFinalCost() {
     if (nearest) fcSetAirport(ad, fc, nearest);
   }
 
+  const heroHtml = '<section class="panel fc-hero">' +
+    '<div class="fc-hero-photo-wrap">' +
+    (ad.imageUrl ? '<img src="' + esc(ad.imageUrl) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '') +
+    '</div>' +
+    '<div class="fc-hero-info">' +
+    '<div class="fc-hero-title">' + esc(ad.title) + '</div>' +
+    '<div class="fc-hero-total-label">Precio total puesto en España</div>' +
+    '<div class="fc-hero-total-value" id="fcTotalHero">—</div>' +
+    '</div>' +
+    '</section>';
+
   const importedHtml = '<section class="panel">' +
     '<h3 style="margin-top:0">Datos importados del anuncio</h3>' +
     '<div class="fc-import-grid">' +
@@ -2248,7 +2277,7 @@ function renderFinalCost() {
     '<div><span class="label-soft">Emisiones CO₂</span><br><strong>' + (ad.co2Emissions ? esc(ad.co2Emissions) : '—') + '</strong></div>' +
     '<div><span class="label-soft">Ubicación</span><br><strong>' + (ad.location ? esc(ad.location) : '—') + '</strong></div>' +
     '</div>' +
-    (taxRate !== null ? '<p class="hint" style="margin-top:12px">Impuesto de matriculación (España): <strong>' + taxRate + '%</strong> sobre el precio del anuncio → <strong>' + fmtEUR.format(taxAmount) + '</strong></p>' : '') +
+    (taxRate !== null ? '<div class="fc-tax-highlight">Impuesto de matriculación (España) · ' + taxRate + '% del precio → <strong>' + fmtEUR.format(taxAmount) + '</strong></div>' : '') +
     '</section>';
 
   const gastosHtml = '<section class="panel"><h3 style="margin-top:0">Gastos de importación y matriculación en España</h3>' +
@@ -2275,9 +2304,9 @@ function renderFinalCost() {
         (parseConsumptionValue(ad) ? ' y el consumo del anuncio' : ' — sin dato de consumo en el anuncio, ajusta el combustible a mano') + '.</p>' : '') +
       '</section>';
 
-    h += '<div class="fc-layout"><div class="fc-col-gastos">' + importedHtml + gastosHtml + '</div><div class="fc-col-map">' + mapHtml + '</div></div>';
+    h += heroHtml + '<div class="fc-layout"><div class="fc-col-gastos">' + importedHtml + gastosHtml + '</div><div class="fc-col-map">' + mapHtml + '</div></div>';
   } else {
-    h += importedHtml + gastosHtml;
+    h += heroHtml + importedHtml + gastosHtml;
   }
 
   body.innerHTML = h;
