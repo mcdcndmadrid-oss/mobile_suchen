@@ -1839,7 +1839,7 @@ function omHasFillableGaps(ad) {
 }
 function omFillLinkHtml(ad) {
   if (!omHasFillableGaps(ad)) return '';
-  return '<a href="javascript:void(0)" class="official-model-link" onclick="fillFromOfficialModel(' + JSON.stringify(String(ad.id)) + ')">🔧 Rellenar huecos con ficha oficial</a>';
+  return '<a href="javascript:void(0)" class="official-model-link" onclick="fillFromOfficialModel(\'' + ad.id + '\')">🔧 Rellenar huecos con ficha oficial</a>';
 }
 
 // Rellena solo los campos técnicos VACÍOS del anuncio con los datos del modelo oficial
@@ -2265,7 +2265,7 @@ function renderFinalCost() {
     const routeSourceNote = fc.route ? 'ruta real por carretera' : 'estimación en línea recta por autopista, cargando la ruta real…';
     const mapHtml = '<section class="panel">' +
       '<h3 style="margin-top:0">Aeropuerto de vuelta y ruta a Madrid</h3>' +
-      '<div class="row-actions"><label>Aeropuerto: <select id="fcAirportSelect" onchange="fcApplyAirport(' + JSON.stringify(String(ad.id)) + ', this.value)">' +
+      '<div class="row-actions"><label>Aeropuerto: <select id="fcAirportSelect" onchange="fcApplyAirport(\'' + ad.id + '\', this.value)">' +
       '<option value="">— Elige un aeropuerto —</option>' +
       AIRPORTS.map(a2 => '<option value="' + a2.code + '"' + (fc.airportCode === a2.code ? ' selected' : '') + '>' + esc(a2.name) + ' (' + a2.code + ')</option>').join('') +
       '</select></label></div>' +
@@ -2284,7 +2284,7 @@ function renderFinalCost() {
 
   document.getElementById('fcFieldsBody').innerHTML = FINAL_COST_FIELDS.map(f =>
     '<tr><td>' + esc(f.label) + '</td><td style="width:140px">' +
-    '<input type="number" step="1" value="' + (fc.fields[f.key] ?? 0) + '" oninput="fcUpdateField(' + JSON.stringify(String(ad.id)) + ', \'' + f.key + '\', this.value)">' +
+    '<input type="number" step="1" value="' + (fc.fields[f.key] ?? 0) + '" oninput="fcUpdateField(\'' + ad.id + '\', \'' + f.key + '\', this.value)">' +
     '</td></tr>'
   ).join('');
 
