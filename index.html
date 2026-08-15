@@ -562,10 +562,12 @@
         <button id="btnViewSearch">Búsqueda<span id="searchTabCount" class="tab-count" hidden></span></button>
         <button id="btnViewModels">Modelos oficiales</button>
         <button id="btnViewFinalCost">Coste final</button>
+        <button id="btnViewRadar">Gráfico radar</button>
       </div>
       <button id="btnTheme" title="Cambiar tema"></button>
       <button id="btnPrefs">Preferencias</button>
       <button id="btnReview">🔄 Revisar anuncios</button>
+      <button id="btnFillAll" onclick="fillAllFromOfficialModels()">🔧 Rellenar todos los huecos</button>
       <button id="btnPublish">Publicar (cars.json)</button>
       <button id="btnLoadShared">Ver catálogo publicado</button>
       <button id="btnExport">Exportar</button>
@@ -752,6 +754,17 @@
     <div id="fcBody"></div>
   </div>
 
+  <div id="radarArea" hidden>
+    <section class="panel">
+      <div class="panel-header">
+        <p class="eyebrow">Gráfico radar — compara anuncios guardados</p>
+      </div>
+      <p class="hint">Elige 2 o más anuncios para ver cómo puntúan uno junto al otro en cada criterio de tus Preferencias (con peso puesto): cuanto más hacia fuera, mejor.</p>
+      <div class="om-cat-models" id="radarCheckGroups"></div>
+    </section>
+    <div id="radarBody"></div>
+  </div>
+
   <section class="panel" id="recPanel" hidden>
     <p class="eyebrow">Recomendaciones</p>
     <ul class="rec-list" id="recList"></ul>
@@ -892,7 +905,7 @@ function load() {
   s.prefs = mergePrefs(s.prefs);
   s.columns = Object.assign(defaultColumns(), s.columns || {});
   s.costConfig = Object.assign(defaultCostConfig(), s.costConfig || {});
-  s.view = ['table', 'map', 'search', 'models', 'finalcost'].includes(s.view) ? s.view : 'cards';
+  s.view = ['table', 'map', 'search', 'models', 'finalcost', 'radar'].includes(s.view) ? s.view : 'cards';
   // Anuncios capturados antes de que existiera este campo: el título/highlights/categoría
   // ya estaban guardados, así que se puede detectar el paquete deportivo retroactivamente
   // sin tener que volver a capturarlos.
@@ -1831,6 +1844,7 @@ function render() {
   else if (state.view === 'map') renderMap();
   else if (state.view === 'models') renderOfficialModels();
   else if (state.view === 'finalcost') renderFinalCost();
+  else if (state.view === 'radar') renderRadar();
   else if (state.view !== 'search') renderCards();
   renderRecs();
   renderPrefs();
@@ -1845,18 +1859,20 @@ function applyViewToggle() {
   document.getElementById('mapArea').hidden = v !== 'map';
   document.getElementById('modelsArea').hidden = v !== 'models';
   document.getElementById('finalCostArea').hidden = v !== 'finalcost';
+  document.getElementById('radarArea').hidden = v !== 'radar';
   document.getElementById('btnViewCards').classList.toggle('active', v === 'cards');
   document.getElementById('btnViewTable').classList.toggle('active', v === 'table');
   document.getElementById('btnViewMap').classList.toggle('active', v === 'map');
   document.getElementById('btnViewSearch').classList.toggle('active', v === 'search');
   document.getElementById('btnViewModels').classList.toggle('active', v === 'models');
   document.getElementById('btnViewFinalCost').classList.toggle('active', v === 'finalcost');
+  document.getElementById('btnViewRadar').classList.toggle('active', v === 'radar');
 
-  // "Búsqueda", "Modelos oficiales" y "Coste final" son pestañas aparte: cuando alguna
-  // está activa, el resto de secciones del comparador detallado (criterios activos y
-  // recomendaciones) no aplican y se ocultan. La visibilidad del propio panel de
+  // "Búsqueda", "Modelos oficiales", "Coste final" y "Gráfico radar" son pestañas aparte:
+  // cuando alguna está activa, el resto de secciones del comparador detallado (criterios
+  // activos y recomendaciones) no aplican y se ocultan. La visibilidad del propio panel de
   // búsqueda la gestiona renderSearchResults().
-  if (v === 'search' || v === 'models' || v === 'finalcost') {
+  if (v === 'search' || v === 'models' || v === 'finalcost' || v === 'radar') {
     document.getElementById('criteriaBar').hidden = true;
     document.getElementById('recPanel').hidden = true;
   }
@@ -2149,12 +2165,10 @@ function omFillLinkHtml(ad) {
 // ejemplar (kilometraje, año, precio, ubicación...). Marca cada campo rellenado como
 // "editado" para que se vea igual que una edición manual y quede claro que no viene
 // de mobile.de.
-function fillFromOfficialModel(adId) {
-  const ad = state.ads.find(a => String(a.id) === String(adId));
-  if (!ad) return;
-  const m = omMatchedModel(ad);
-  if (!m) { alert('No se encontró un modelo oficial equivalente para este anuncio.'); return; }
-
+// Núcleo compartido por el botón individual y el botón "rellenar todos": rellena solo los
+// huecos, marca cada campo como editado, pero no guarda/renderiza/avisa — eso lo hace quien
+// llama, para poder hacerlo una sola vez al procesar varios anuncios de golpe.
+function fillGapsFromModel(ad, m) {
   const filledKeys = [];
   const set = (key, val) => {
     if ((ad[key] === null || ad[key] === undefined || ad[key] === '') && val !== null && val !== undefined) {
@@ -2174,12 +2188,42 @@ function fillFromOfficialModel(adId) {
     const n = omNum(m.consumptionWltp);
     if (n !== null) { ad.energyConsumption = String(n).replace('.', ',') + ' l/100km'; filledKeys.push('energyConsumption'); }
   }
+  if (filledKeys.length) {
+    ad._edited = ad._edited || {};
+    filledKeys.forEach(k => ad._edited[k] = true);
+  }
+  return filledKeys;
+}
 
+function fillFromOfficialModel(adId) {
+  const ad = state.ads.find(a => String(a.id) === String(adId));
+  if (!ad) return;
+  const m = omMatchedModel(ad);
+  if (!m) { alert('No se encontró un modelo oficial equivalente para este anuncio.'); return; }
+  const filledKeys = fillGapsFromModel(ad, m);
   if (!filledKeys.length) { alert('Este anuncio ya tiene esos datos completos (o el modelo oficial tampoco los tiene).'); return; }
-  ad._edited = ad._edited || {};
-  filledKeys.forEach(k => ad._edited[k] = true);
   save(); render();
   alert('Rellenado desde "' + m.name + '": ' + filledKeys.length + ' campo(s).');
+}
+
+// Botón "Rellenar todos los huecos": recorre todos los anuncios guardados (no los de
+// búsqueda, que no se editan a mano) y aplica fillGapsFromModel a los que tengan un modelo
+// oficial equivalente, en una sola pasada con un único guardado/render/aviso al final.
+function fillAllFromOfficialModels() {
+  const ads = regularAds();
+  let adsFilled = 0, fieldsFilled = 0, noMatch = 0;
+  ads.forEach(ad => {
+    const m = omMatchedModel(ad);
+    if (!m) { noMatch++; return; }
+    const filledKeys = fillGapsFromModel(ad, m);
+    if (filledKeys.length) { adsFilled++; fieldsFilled += filledKeys.length; }
+  });
+  if (!fieldsFilled) {
+    alert('No había huecos que rellenar' + (noMatch ? ' (' + noMatch + ' anuncio(s) sin modelo oficial equivalente)' : '') + '.');
+    return;
+  }
+  save(); render();
+  alert('Rellenados ' + fieldsFilled + ' campo(s) en ' + adsFilled + ' anuncio(s).' + (noMatch ? ' ' + noMatch + ' sin modelo oficial equivalente.' : ''));
 }
 
 function goToOfficialModel(id) {
@@ -2606,6 +2650,100 @@ function renderFinalCost() {
 
   fcUpdateTotal(ad);
   if (coords) fcRenderMap(ad, coords, fc);
+}
+
+/* ---------- Gráfico radar ---------- */
+let radarSelected = new Set();
+function radarToggle(id, checked) {
+  if (checked) radarSelected.add(id); else radarSelected.delete(id);
+  renderRadar();
+}
+function radarRenderChecks() {
+  document.getElementById('radarCheckGroups').innerHTML = regularAds().map(ad => (
+    '<label class="om-check">' +
+    '<input type="checkbox" ' + (radarSelected.has(String(ad.id)) ? 'checked' : '') + ' onchange="radarToggle(\'' + ad.id + '\', this.checked)">' +
+    '<span>' + esc(ad.title) + '</span>' +
+    '</label>'
+  )).join('');
+}
+
+// Unión de criterios (ev.parts) presentes en al menos uno de los anuncios seleccionados,
+// para que todos los polígonos del radar compartan los mismos ejes. Solo entran los
+// criterios con peso puesto en Preferencias (evaluateAd ya los filtra así).
+function radarBuildAxes(evals) {
+  const seen = new Map();
+  evals.forEach(({ ev }) => ev.parts.forEach(p => { if (!seen.has(p.key)) seen.set(p.key, p.label); }));
+  return [...seen.entries()];
+}
+
+// SVG a mano: N ejes repartidos en círculo, valor de cada anuncio = radio proporcional a
+// status.v (0-1, ya normalizado por evaluateAd — 1 siempre "mejor en ese criterio" sea cual
+// sea el sentido real de la métrica). Un criterio que un anuncio no tenga aplicable se
+// dibuja en el punto medio (neutro), igual que el resto de la app trata lo no valorado.
+function radarRenderChart(evals, axes) {
+  const n = axes.length;
+  if (n < 3) return '<p class="hint">Hacen falta al menos 3 criterios con peso puesto en Preferencias (y aplicables a estos anuncios) para dibujar el radar.</p>';
+  const size = 480, center = size / 2, maxR = size / 2 - 74;
+  const angleFor = i => (Math.PI * 2 * i / n) - Math.PI / 2;
+
+  let axesSvg = '';
+  axes.forEach(([, label], i) => {
+    const a = angleFor(i);
+    const x = center + maxR * Math.cos(a), y = center + maxR * Math.sin(a);
+    axesSvg += '<line x1="' + center + '" y1="' + center + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="var(--line)" stroke-width="1"></line>';
+    const lx = center + (maxR + 24) * Math.cos(a), ly = center + (maxR + 24) * Math.sin(a);
+    const anchor = Math.cos(a) > 0.3 ? 'start' : (Math.cos(a) < -0.3 ? 'end' : 'middle');
+    axesSvg += '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" font-size="11" fill="var(--ink-soft)" text-anchor="' + anchor + '" dominant-baseline="middle">' + esc(label) + '</text>';
+  });
+
+  let ringsSvg = '';
+  [0.25, 0.5, 0.75, 1].forEach(r => {
+    const pts = axes.map((_, i) => {
+      const a = angleFor(i);
+      return (center + maxR * r * Math.cos(a)).toFixed(1) + ',' + (center + maxR * r * Math.sin(a)).toFixed(1);
+    }).join(' ');
+    ringsSvg += '<polygon points="' + pts + '" fill="none" stroke="var(--line)" stroke-width="1" stroke-dasharray="' + (r === 1 ? '0' : '3 3') + '"></polygon>';
+  });
+
+  let polysSvg = '';
+  evals.forEach(({ ev }, idx) => {
+    const color = OM_PALETTE[idx % OM_PALETTE.length];
+    const pts = axes.map(([key], i) => {
+      const part = ev.parts.find(p => p.key === key);
+      const v = part ? part.status.v : 0.5;
+      const a = angleFor(i);
+      return (center + maxR * v * Math.cos(a)).toFixed(1) + ',' + (center + maxR * v * Math.sin(a)).toFixed(1);
+    }).join(' ');
+    polysSvg += '<polygon points="' + pts + '" fill="' + color + '" fill-opacity="0.18" stroke="' + color + '" stroke-width="2.5"></polygon>';
+  });
+
+  return '<svg width="100%" viewBox="0 0 ' + size + ' ' + size + '" style="max-width:560px">' + ringsSvg + axesSvg + polysSvg + '</svg>';
+}
+
+function renderRadar() {
+  const body = document.getElementById('radarBody');
+  const allAds = regularAds();
+  if (allAds.length < 2) {
+    radarRenderChecks();
+    body.innerHTML = '<div class="panel"><p class="hint">Necesitas al menos 2 anuncios guardados en Tarjetas para comparar.</p></div>';
+    return;
+  }
+  if (!radarSelected.size) evalAll().slice(0, 3).forEach(r => radarSelected.add(String(r.ad.id)));
+  radarRenderChecks();
+  const selectedAds = allAds.filter(ad => radarSelected.has(String(ad.id)));
+  if (selectedAds.length < 2) {
+    body.innerHTML = '<div class="panel"><p class="hint">Selecciona arriba al menos 2 anuncios para comparar.</p></div>';
+    return;
+  }
+  const evals = selectedAds.map(ad => ({ ad, ev: evaluateAd(ad, state.prefs) }));
+  const axes = radarBuildAxes(evals);
+  const legend = evals.map(({ ad }, i) =>
+    '<div class="om-legend-item"><span class="om-legend-swatch" style="background:' + OM_PALETTE[i % OM_PALETTE.length] + '"></span>' + esc(ad.title) + '</div>'
+  ).join('');
+  body.innerHTML = '<div class="panel">' +
+    '<div class="om-sizes-wrap"><div class="om-size-svg-wrap">' + radarRenderChart(evals, axes) + '</div><div class="om-size-legend">' + legend + '</div></div>' +
+    '<p class="hint" style="margin-top:14px">Cada eje es un criterio de tus Preferencias con peso puesto: el borde exterior es "mejor en ese criterio", el centro "peor". Si a un anuncio no le aplica algún eje, se dibuja en el punto medio (neutro).</p>' +
+    '</div>';
 }
 
 function renderCriteriaChips() {
@@ -3493,6 +3631,9 @@ document.getElementById('btnViewModels').addEventListener('click', () => {
 });
 document.getElementById('btnViewFinalCost').addEventListener('click', () => {
   state.view = 'finalcost'; save(); render();
+});
+document.getElementById('btnViewRadar').addEventListener('click', () => {
+  state.view = 'radar'; save(); render();
 });
 
 /* ---------- theme (claro/oscuro) ---------- */
