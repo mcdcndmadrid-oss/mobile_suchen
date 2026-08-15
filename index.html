@@ -445,27 +445,24 @@
   .price-delta.good { color: var(--good-text); font-weight: 600; }
   .price-delta.bad { color: var(--bad-text); font-weight: 600; }
 
-  .color-pref-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; }
   .color-swatch { width: 15px; height: 15px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px var(--line-input); }
-  .color-pref-label { flex: 1; }
-  .color-pref-toggle { display: flex; gap: 3px; flex: none; }
-  .color-pref-toggle button {
-    width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line-input);
-    background: var(--surface-3); color: var(--ink-soft); font: 600 13px var(--font-body); cursor: pointer; padding: 0;
-  }
-  .color-pref-toggle button.active[data-v="1"] { background: var(--good-bg); color: var(--good-text); border-color: transparent; }
-  .color-pref-toggle button.active[data-v="-1"] { background: var(--bad-bg); color: var(--bad-text); border-color: transparent; }
-  .color-pref-toggle button.active[data-v="0"] { background: var(--surface-2); color: var(--ink); border-color: transparent; }
 
-  .model-rank-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; }
-  .model-rank-pos { width: 30px; color: var(--ink-soft); font: 600 12px var(--font-mono); flex: none; }
-  .model-rank-label { flex: 1; }
-  .model-rank-btns { display: flex; gap: 3px; flex: none; }
-  .model-rank-btns button {
+  .rank-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; }
+  .rank-pos { width: 30px; color: var(--ink-soft); font: 600 12px var(--font-mono); flex: none; }
+  .rank-label { flex: 1; display: flex; align-items: center; gap: 6px; }
+  .rank-btns { display: flex; gap: 3px; flex: none; }
+  .rank-btns button {
     width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line-input);
     background: var(--surface-3); color: var(--ink); cursor: pointer; padding: 0; font-size: 12px;
   }
-  .model-rank-btns button:disabled { opacity: .35; cursor: default; }
+  .rank-btns button:disabled { opacity: .35; cursor: default; }
+
+  .feature-chip-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; max-height: 220px; overflow-y: auto; padding-right: 4px; }
+  .feature-chip {
+    font: 12px var(--font-body); padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line-input);
+    background: var(--surface-3); color: var(--ink); cursor: pointer;
+  }
+  .feature-chip.active { background: var(--good-bg); color: var(--good-text); border-color: transparent; }
   .car-card .score-block { text-align: right; }
   .car-card .specs {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; font-size: 12.5px;
@@ -568,6 +565,7 @@
       </div>
       <button id="btnTheme" title="Cambiar tema"></button>
       <button id="btnPrefs">Preferencias</button>
+      <button id="btnReview">🔄 Revisar anuncios</button>
       <button id="btnPublish">Publicar (cars.json)</button>
       <button id="btnLoadShared">Ver catálogo publicado</button>
       <button id="btnExport">Exportar</button>
@@ -589,6 +587,15 @@
     <span class="criteria-label">Tus criterios</span>
     <div id="criteriaChips" style="display:contents"></div>
     <span class="criteria-count" id="criteriaCount"></span>
+  </section>
+
+  <section class="panel" id="reviewPanel" hidden>
+    <div class="panel-header">
+      <p class="eyebrow">Revisar anuncios guardados</p>
+      <button type="button" class="panel-close" title="Ocultar" onclick="document.getElementById('reviewPanel').hidden = true">✕</button>
+    </div>
+    <p class="hint">mobile.de bloquea el acceso directo desde fuera del navegador, así que no hay forma de comprobarlos todos solo — ábrelos de uno en uno (empezando por los más antiguos) y vuelve a pulsar el bookmarklet en cada uno: si cambió de precio o lo retiraron, se actualiza solo aquí.</p>
+    <div id="reviewList"></div>
   </section>
 
   <section class="panel" id="addPanel" hidden>
@@ -647,13 +654,17 @@
         <h3>Equipamiento deseado</h3>
         <p class="hint">Separado por comas. Se busca coincidencia parcial en el equipamiento del anuncio (p. ej. «Kamera» encuentra «Rückfahrkamera»).</p>
         <input type="text" class="wishlist-input" id="wishlistInput">
+        <details class="help" style="margin-top:8px">
+          <summary>Ver todo el equipamiento de tus anuncios</summary>
+          <div class="feature-chip-grid" id="featureBrowserList"></div>
+        </details>
         <table class="pref-table" style="margin-top:8px"><tbody>
           <tr><td>Peso del equipamiento</td><td style="width:90px"><select id="wishlistWeight"></select></td></tr>
         </tbody></table>
       </div>
       <div class="pref-group">
         <h3>Colores</h3>
-        <p class="hint">Valora cada color que aparece en tus anuncios guardados: + lo prefieres, − lo evitas.</p>
+        <p class="hint">Ordena de más a menos preferido con las flechas. Los que estén más arriba puntúan mejor; los que no aparezcan en tus anuncios no se pueden ordenar.</p>
         <div id="colorPrefsList"></div>
         <table class="pref-table" style="margin-top:8px"><tbody>
           <tr><td>Peso del color</td><td style="width:90px"><select id="colorPrefsWeight"></select></td></tr>
@@ -779,7 +790,7 @@ function defaultPrefs() {
       travelTimeMadrid: { label: 'Tiempo desde Madrid (avión+coche)', green: 3, red: 6, weight: 2 },
       consumption: { label: 'Consumo (l/100km)', green: 6, red: 8, weight: 1 },
       sellerRating: { label: 'Valoración del vendedor', green: 4.5, red: 3.5, weight: 0 },
-      transferHours: { label: 'Trayecto en coche hasta Madrid (h)', green: 15, red: 24, weight: 0 },
+      transferHours: { label: 'Trayecto en coche hasta Madrid (h)', green: 15, red: 24, weight: 2 },
       transferCost: { label: 'Coste del trayecto hasta Madrid (€)', green: 150, red: 300, weight: 0 }
     },
     categorical: {
@@ -791,7 +802,7 @@ function defaultPrefs() {
     accidentFree: { weight: 3 },
     priceRating:  { weight: 2 },
     wishlist: { items: ['Navigationssystem', 'Apple CarPlay', 'Sitzheizung', 'Kamera', 'LED-Scheinwerfer', 'Tempomat'], weight: 2 },
-    colorPrefs: { weight: 0, values: {} },
+    colorPrefs: { weight: 0, order: [] },
     modelRank: { weight: 0, order: [] }
   };
 }
@@ -863,7 +874,7 @@ function mergePrefs(saved) {
   merged.priceRating = merged.priceRating || def.priceRating;
   merged.wishlist = merged.wishlist || def.wishlist;
   merged.colorPrefs = merged.colorPrefs || def.colorPrefs;
-  merged.colorPrefs.values = merged.colorPrefs.values || {};
+  merged.colorPrefs.order = merged.colorPrefs.order || [];
   merged.modelRank = merged.modelRank || def.modelRank;
   merged.modelRank.order = merged.modelRank.order || [];
   return merged;
@@ -1521,16 +1532,20 @@ function evaluateAd(ad, prefs) {
     parts.push({ key: 'priceRating', label: 'Valoración precio', status: { v: m.v, cls: m.cls }, weight: P.priceRating.weight, text: ad.priceRating.label });
   }
 
-  // Preferencia de color: a diferencia de las categóricas normales (un único "prefiero"),
-  // el usuario valora cada color con +1/0/-1 en Preferencias; solo puntúa si el color de
-  // ESTE anuncio tiene una valoración distinta de neutro, para no penalizar colores sobre
-  // los que aún no ha opinado.
-  if (P.colorPrefs.weight) {
+  // Preferencia de color: mismo sistema ordinal que el orden de modelos (ranking a mano
+  // con ▲▼ en Preferencias, no un simple prefiero/no-prefiero). Puntúa 1 el primero de la
+  // lista, 0 el último; los colores que no estén en la lista quedan neutros.
+  if (P.colorPrefs.weight && P.colorPrefs.order.length > 1) {
     const info = colorInfo(ad.color);
     const label = info ? info.es : ad.color;
-    const sign = label ? P.colorPrefs.values[label] : undefined;
-    if (sign) {
-      parts.push({ key: 'colorPrefs', label: 'Color', status: sign > 0 ? { v: 1, cls: 'good' } : { v: 0, cls: 'bad' }, weight: P.colorPrefs.weight, text: label });
+    const idx = label ? P.colorPrefs.order.indexOf(label) : -1;
+    if (idx !== -1) {
+      const frac = 1 - idx / (P.colorPrefs.order.length - 1);
+      parts.push({
+        key: 'colorPrefs', label: 'Color',
+        status: { v: frac, cls: frac >= .66 ? 'good' : (frac >= .33 ? 'warn' : 'bad') },
+        weight: P.colorPrefs.weight, text: '#' + (idx + 1) + ' de ' + P.colorPrefs.order.length + ' (' + label + ')'
+      });
     }
   }
 
@@ -1728,8 +1743,21 @@ function distinctAdColors() {
   });
   return [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 }
-function setColorPref(btnEl) {
-  btnEl.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btnEl));
+// Todo el equipamiento distinto (ad.features) presente en los anuncios guardados, para
+// poder explorarlo en Preferencias y añadirlo al equipamiento deseado con un clic.
+function distinctFeatures() {
+  const set = new Set();
+  regularAds().forEach(ad => (ad.features || []).forEach(f => set.add(f)));
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+function toggleWishlistFeature(btn) {
+  const feature = btn.dataset.feature;
+  const input = document.getElementById('wishlistInput');
+  const items = input.value.split(',').map(s => s.trim()).filter(Boolean);
+  const idx = items.findIndex(i => i.toLowerCase() === feature.toLowerCase());
+  if (idx === -1) { items.push(feature); btn.classList.add('active'); btn.textContent = '✓ ' + feature; }
+  else { items.splice(idx, 1); btn.classList.remove('active'); btn.textContent = '+ ' + feature; }
+  input.value = items.join(', ');
 }
 
 // Modelos ("marca + modelo") distintos presentes en los anuncios guardados, para poder
@@ -1742,16 +1770,35 @@ function distinctAdModels() {
   });
   return [...seen];
 }
-function modelRankMove(btn, dir) {
-  const row = btn.closest('.model-rank-row');
+
+// Lista reordenable genérica (▲▼) para preferencias ordinales — la usan tanto "Orden de
+// modelos" como "Colores". labelHtmlFn es opcional, para poder meter la muestra de color
+// junto al nombre en la fila de colores.
+function renderRankList(containerId, items, currentOrder, labelHtmlFn) {
+  const known = currentOrder.filter(k => items.includes(k));
+  const list = known.concat(items.filter(k => !known.includes(k)));
+  document.getElementById(containerId).innerHTML = list.length
+    ? list.map((key, i) => (
+        '<div class="rank-row" data-key="' + esc(key) + '">' +
+        '<span class="rank-pos">#' + (i + 1) + '</span>' +
+        '<span class="rank-label">' + (labelHtmlFn ? labelHtmlFn(key) : esc(key)) + '</span>' +
+        '<div class="rank-btns">' +
+        '<button type="button" onclick="rankMove(this,-1)"' + (i === 0 ? ' disabled' : '') + '>▲</button>' +
+        '<button type="button" onclick="rankMove(this,1)"' + (i === list.length - 1 ? ' disabled' : '') + '>▼</button>' +
+        '</div></div>'
+      )).join('')
+    : '<p class="hint">Todavía no hay más de un valor distinto en tus anuncios guardados.</p>';
+}
+function rankMove(btn, dir) {
+  const row = btn.closest('.rank-row');
   const sibling = dir < 0 ? row.previousElementSibling : row.nextElementSibling;
-  if (!sibling) return;
+  if (!sibling || !sibling.classList.contains('rank-row')) return;
   if (dir < 0) row.parentElement.insertBefore(row, sibling);
   else row.parentElement.insertBefore(sibling, row);
-  const rows = [...document.querySelectorAll('#modelRankList .model-rank-row')];
+  const rows = [...row.parentElement.querySelectorAll('.rank-row')];
   rows.forEach((r, i) => {
-    r.querySelector('.model-rank-pos').textContent = '#' + (i + 1);
-    const btns = r.querySelectorAll('.model-rank-btns button');
+    r.querySelector('.rank-pos').textContent = '#' + (i + 1);
+    const btns = r.querySelectorAll('.rank-btns button');
     btns[0].disabled = i === 0;
     btns[1].disabled = i === rows.length - 1;
   });
@@ -1787,6 +1834,7 @@ function render() {
   else if (state.view !== 'search') renderCards();
   renderRecs();
   renderPrefs();
+  if (!document.getElementById('reviewPanel').hidden) renderReviewList();
   applyViewToggle();
 }
 
@@ -2959,7 +3007,7 @@ const ROW_DEFS = [
   },
   { id: 'sportPackage', label: 'Paquete deportivo', key: 'sportPackage', fn: ad => editableField(ad, 'sportPackage', 'text') },
   {
-    id: 'location', label: 'Ubicación', key: 'travelTimeMadrid', fn: ad => {
+    id: 'location', label: 'Ubicación', key: 'transferHours', fn: ad => {
       const h = estimateTravelTimeFromMadridHours(ad.location);
       const t = ad.locationTransfer;
       let extra = h !== null ? '<div class="car-meta">~' + fmtHours(h) + ' desde Madrid (avión+coche, estimación)</div>' : '';
@@ -3229,36 +3277,23 @@ function renderPrefs() {
   document.getElementById('wishlistInput').value = P.wishlist.items.join(', ');
   document.getElementById('wishlistWeight').outerHTML = weightSelect('wishlistWeight', P.wishlist.weight);
 
-  const colors = distinctAdColors();
-  document.getElementById('colorPrefsList').innerHTML = colors.length
-    ? colors.map(([label, hex]) => {
-        const val = P.colorPrefs.values[label] || 0;
-        return '<div class="color-pref-row" data-color="' + esc(label) + '">' +
-          (hex ? '<span class="color-swatch" style="background:' + hex + '"></span>' : '<span class="color-swatch"></span>') +
-          '<span class="color-pref-label">' + esc(label) + '</span>' +
-          '<div class="color-pref-toggle">' +
-          [['-1', '−'], ['0', '='], ['1', '+']].map(([v, sym]) =>
-            '<button type="button" data-v="' + v + '" class="' + (String(val) === v ? 'active' : '') + '" onclick="setColorPref(this)">' + sym + '</button>'
-          ).join('') +
-          '</div></div>';
+  const feats = distinctFeatures();
+  const currentWishlist = P.wishlist.items.map(i => i.toLowerCase());
+  document.getElementById('featureBrowserList').innerHTML = feats.length
+    ? feats.map(f => {
+        const active = currentWishlist.includes(f.toLowerCase());
+        return '<button type="button" class="feature-chip' + (active ? ' active' : '') + '" data-feature="' + esc(f) + '" onclick="toggleWishlistFeature(this)">' +
+          (active ? '✓ ' : '+ ') + esc(f) + '</button>';
       }).join('')
-    : '<p class="hint">Todavía no hay colores en tus anuncios guardados.</p>';
+    : '<p class="hint">Todavía no hay equipamiento registrado en tus anuncios guardados.</p>';
+
+  const colors = distinctAdColors();
+  const colorHex = Object.fromEntries(colors);
+  renderRankList('colorPrefsList', colors.map(([label]) => label), P.colorPrefs.order,
+    label => '<span class="color-swatch" style="background:' + (colorHex[label] || 'transparent') + '"></span>' + esc(label));
   document.getElementById('colorPrefsWeight').outerHTML = weightSelect('colorPrefsWeight', P.colorPrefs.weight);
 
-  const seenModels = distinctAdModels();
-  const knownModels = P.modelRank.order.filter(m => seenModels.includes(m));
-  const modelList = knownModels.concat(seenModels.filter(m => !knownModels.includes(m)));
-  document.getElementById('modelRankList').innerHTML = modelList.length
-    ? modelList.map((label, i) => (
-        '<div class="model-rank-row" data-model="' + esc(label) + '">' +
-        '<span class="model-rank-pos">#' + (i + 1) + '</span>' +
-        '<span class="model-rank-label">' + esc(label) + '</span>' +
-        '<div class="model-rank-btns">' +
-        '<button type="button" onclick="modelRankMove(this,-1)"' + (i === 0 ? ' disabled' : '') + '>▲</button>' +
-        '<button type="button" onclick="modelRankMove(this,1)"' + (i === modelList.length - 1 ? ' disabled' : '') + '>▼</button>' +
-        '</div></div>'
-      )).join('')
-    : '<p class="hint">Todavía no hay más de un modelo distinto en tus anuncios guardados.</p>';
+  renderRankList('modelRankList', distinctAdModels(), P.modelRank.order);
   document.getElementById('modelRankWeight').outerHTML = weightSelect('modelRankWeight', P.modelRank.weight);
 
   document.getElementById('columnChecks').innerHTML = ROW_DEFS.map(r =>
@@ -3283,15 +3318,9 @@ function savePrefsFromUI() {
   P.priceRating.weight = parseInt(document.getElementById('flag_rating_w').value, 10);
   P.wishlist.items = document.getElementById('wishlistInput').value.split(',').map(s => s.trim()).filter(Boolean);
   P.wishlist.weight = parseInt(document.getElementById('wishlistWeight').value, 10);
-  const colorValues = {};
-  document.querySelectorAll('.color-pref-row').forEach(row => {
-    const active = row.querySelector('button.active');
-    const v = active ? parseInt(active.dataset.v, 10) : 0;
-    if (v) colorValues[row.dataset.color] = v;
-  });
-  P.colorPrefs.values = colorValues;
+  P.colorPrefs.order = [...document.querySelectorAll('#colorPrefsList .rank-row')].map(r => r.dataset.key);
   P.colorPrefs.weight = parseInt(document.getElementById('colorPrefsWeight').value, 10);
-  P.modelRank.order = [...document.querySelectorAll('#modelRankList .model-rank-row')].map(r => r.dataset.model);
+  P.modelRank.order = [...document.querySelectorAll('#modelRankList .rank-row')].map(r => r.dataset.key);
   P.modelRank.weight = parseInt(document.getElementById('modelRankWeight').value, 10);
   document.querySelectorAll('#columnChecks input[type="checkbox"]').forEach(cb => {
     state.columns[cb.dataset.col] = cb.checked;
@@ -3305,6 +3334,28 @@ function openAdd() {
   const p = document.getElementById('addPanel');
   p.hidden = false;
   document.getElementById('pasteBox').focus();
+}
+
+// "Revisar anuncios": no se puede comprobar mobile.de por detrás (bloquea el scraping
+// externo), así que esto es solo una lista ordenada por antigüedad de captura con enlaces
+// directos, para que el usuario los reabra y recapture con el bookmarklet uno a uno.
+function renderReviewList() {
+  const list = document.getElementById('reviewList');
+  if (!list) return;
+  const ads = regularAds().slice().sort((a, b) => (a.capturedAt || '').localeCompare(b.capturedAt || ''));
+  if (!ads.length) { list.innerHTML = '<p class="hint">No hay anuncios guardados todavía.</p>'; return; }
+  list.innerHTML = '<table class="pref-table"><thead><tr><th>Anuncio</th><th>Última captura</th><th></th></tr></thead><tbody>' +
+    ads.map(ad => {
+      const days = ad.capturedAt ? Math.floor((Date.now() - new Date(ad.capturedAt).getTime()) / 86400000) : null;
+      const daysText = days === null ? '—' : days <= 0 ? 'Hoy' : 'Hace ' + days + (days === 1 ? ' día' : ' días');
+      return '<tr><td>' + esc(ad.title) + '</td><td>' + daysText + '</td><td>' +
+        (ad.url ? '<a class="adlink" href="' + esc(ad.url) + '" target="_blank" rel="noopener">Abrir ↗</a>' : '<span class="hint">Sin URL</span>') +
+        '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+function openReview() {
+  document.getElementById('reviewPanel').hidden = false;
+  renderReviewList();
 }
 function removeAd(id) {
   state.ads = state.ads.filter(a => a.id !== id);
@@ -3419,6 +3470,11 @@ document.getElementById('btnAdd').addEventListener('click', () => {
   const p = document.getElementById('addPanel');
   p.hidden = !p.hidden;
   if (!p.hidden) document.getElementById('pasteBox').focus();
+});
+document.getElementById('btnReview').addEventListener('click', () => {
+  const p = document.getElementById('reviewPanel');
+  p.hidden = !p.hidden;
+  if (!p.hidden) renderReviewList();
 });
 document.getElementById('btnViewCards').addEventListener('click', () => {
   state.view = 'cards'; save(); render();

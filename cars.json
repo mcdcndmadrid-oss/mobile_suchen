@@ -246,6 +246,12 @@
           "km": 2178,
           "hours": 22.53783333333333
         }
+      },
+      "sportPackage": "S line",
+      "locationTransfer": {
+        "km": 2183,
+        "hours": 22.435555555555556,
+        "cost": 387
       }
     },
     {
@@ -355,6 +361,12 @@
       "_edited": {
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "S line",
+      "locationTransfer": {
+        "km": 1702,
+        "hours": 17.86513888888889,
+        "cost": 263
       }
     },
     {
@@ -462,6 +474,12 @@
       "_edited": {
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": null,
+      "locationTransfer": {
+        "km": 2321,
+        "hours": 23.895527777777776,
+        "cost": 359
       }
     },
     {
@@ -568,6 +586,12 @@
       "_edited": {
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": null,
+      "locationTransfer": {
+        "km": 1794,
+        "hours": 18.793999999999997,
+        "cost": 267
       }
     },
     {
@@ -675,6 +699,12 @@
       "_edited": {
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "S line",
+      "locationTransfer": {
+        "km": 1794,
+        "hours": 18.793999999999997,
+        "cost": 278
       }
     },
     {
@@ -784,6 +814,12 @@
       "_edited": {
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "S line",
+      "locationTransfer": {
+        "km": 1702,
+        "hours": 17.86513888888889,
+        "cost": 263
       }
     },
     {
@@ -889,6 +925,12 @@
       "_edited": {
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": null,
+      "locationTransfer": {
+        "km": 1702,
+        "hours": 17.86513888888889,
+        "cost": 301
       }
     },
     {
@@ -998,6 +1040,12 @@
       "_edited": {
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": null,
+      "locationTransfer": {
+        "km": 1738,
+        "hours": 18.16261111111111,
+        "cost": 308
       }
     },
     {
@@ -1099,6 +1147,12 @@
       "imageUrl": "https://img.classistatic.de/api/v1/mo-prod/images/bc/bc9d4874-abfb-47f3-9d64-e0c14db0c890?rule=mo-240",
       "_edited": {
         "co2Emissions": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 2062,
+        "hours": 21.375305555555556,
+        "cost": null
       }
     },
     {
@@ -1210,6 +1264,12 @@
       "imageUrl": "https://img.classistatic.de/api/v1/mo-prod/images/50/5013414d-5280-49c0-a45c-e16615a50287?rule=mo-240",
       "_edited": {
         "co2Emissions": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 2293,
+        "hours": 23.51172222222222,
+        "cost": null
       }
     },
     {
@@ -1336,6 +1396,12 @@
       "_edited": {
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 1702,
+        "hours": 17.86513888888889,
+        "cost": 255
       }
     },
     {
@@ -1448,6 +1514,12 @@
       "_edited": {
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 1870,
+        "hours": 19.635111111111108,
+        "cost": 331
       }
     },
     {
@@ -1554,7 +1626,13 @@
       ],
       "highlights": [],
       "capturedAt": "2026-08-09",
-      "imageUrl": "https://img.classistatic.de/api/v1/mo-prod/images/44/44b0f6b4-dba5-4ad2-aad6-ef1daca607bc?rule=mo-240"
+      "imageUrl": "https://img.classistatic.de/api/v1/mo-prod/images/44/44b0f6b4-dba5-4ad2-aad6-ef1daca607bc?rule=mo-240",
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 1799,
+        "hours": 18.517166666666668,
+        "cost": null
+      }
     },
     {
       "id": 461345751,
@@ -1657,6 +1735,12 @@
         "cylinder": true,
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 2011,
+        "hours": 20.683888888888887,
+        "cost": 357
       }
     },
     {
@@ -1766,6 +1850,12 @@
       "imageUrl": "https://img.classistatic.de/api/v1/mo-prod/images/57/57dea9db-aeb5-4f84-a3b1-a3fcb93e1ed3?rule=mo-240",
       "_edited": {
         "co2Emissions": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 1799,
+        "hours": 18.517166666666668,
+        "cost": null
       }
     },
     {
@@ -1882,6 +1972,12 @@
       "_edited": {
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 1966,
+        "hours": 20.335472222222222,
+        "cost": 349
       }
     },
     {
@@ -1982,6 +2078,12 @@
         "cylinder": true,
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 1804,
+        "hours": 19.39136111111111,
+        "cost": 319
       }
     },
     {
@@ -2093,6 +2195,12 @@
         "cylinder": true,
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 1806,
+        "hours": 18.756305555555556,
+        "cost": 320
       }
     },
     {
@@ -2208,6 +2316,12 @@
       "_edited": {
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 1948,
+        "hours": 20.314444444444444,
+        "cost": 292
       }
     },
     {
@@ -2304,6 +2418,12 @@
         "cylinder": true,
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 2258,
+        "hours": 23.218944444444443,
+        "cost": 400
       }
     },
     {
@@ -2419,6 +2539,12 @@
         "co2Emissions": true,
         "energyConsumption": true,
         "priceGross": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 1966,
+        "hours": 20.335472222222222,
+        "cost": 349
       }
     },
     {
@@ -2501,6 +2627,12 @@
         "cylinder": true,
         "co2Emissions": true,
         "energyConsumption": true
+      },
+      "sportPackage": "M Sport",
+      "locationTransfer": {
+        "km": 1648,
+        "hours": 17.28922222222222,
+        "cost": 292
       }
     }
   ],
@@ -2538,8 +2670,8 @@
       },
       "travelTimeMadrid": {
         "label": "Tiempo desde Madrid (avión+coche)",
-        "green": 3,
-        "red": 6,
+        "green": 5.5,
+        "red": 5.5,
         "weight": 1
       },
       "consumption": {
@@ -2547,6 +2679,24 @@
         "green": 6,
         "red": 8,
         "weight": 1
+      },
+      "sellerRating": {
+        "label": "Valoración del vendedor",
+        "green": 4.5,
+        "red": 4,
+        "weight": 2
+      },
+      "transferHours": {
+        "label": "Trayecto en coche hasta Madrid (h)",
+        "green": 18,
+        "red": 23,
+        "weight": 1
+      },
+      "transferCost": {
+        "label": "Coste del trayecto hasta Madrid (€)",
+        "green": 150,
+        "red": 300,
+        "weight": 0
       }
     },
     "categorical": {
@@ -2583,6 +2733,19 @@
           "FOR_SALE_BY_OWNER": "Particular"
         },
         "weight": 2
+      },
+      "sportPackage": {
+        "label": "Paquete deportivo",
+        "prefer": "",
+        "options": [
+          "M Sport",
+          "S line",
+          "R-Line",
+          "AMG Line",
+          "Sportline",
+          "Black Edition"
+        ],
+        "weight": 3
       }
     },
     "accidentFree": {
@@ -2592,11 +2755,28 @@
       "weight": 2
     },
     "wishlist": {
-      "items": [
-        "M Sport",
-        "S-Line"
-      ],
+      "items": [],
       "weight": 2
+    },
+    "colorPrefs": {
+      "weight": 2,
+      "values": {
+        "Azul": 1,
+        "Blanco": -1,
+        "Gris": 1,
+        "Negro": -1,
+        "Plata": 1,
+        "Verde": 1
+      }
+    },
+    "modelRank": {
+      "weight": 2,
+      "order": [
+        "BMW 318",
+        "Audi A4",
+        "Audi A5",
+        "BMW 330"
+      ]
     }
   },
   "columns": {
@@ -2619,11 +2799,14 @@
     "climate": true,
     "color": true,
     "seller": true,
+    "sellerRating": true,
+    "sportPackage": true,
     "location": true,
     "wishlist": true,
     "featuresCount": true,
     "strengths": true,
     "weaknesses": true,
+    "adAge": true,
     "captured": true
   },
   "view": "table",
