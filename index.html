@@ -456,6 +456,16 @@
   .color-pref-toggle button.active[data-v="1"] { background: var(--good-bg); color: var(--good-text); border-color: transparent; }
   .color-pref-toggle button.active[data-v="-1"] { background: var(--bad-bg); color: var(--bad-text); border-color: transparent; }
   .color-pref-toggle button.active[data-v="0"] { background: var(--surface-2); color: var(--ink); border-color: transparent; }
+
+  .model-rank-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; }
+  .model-rank-pos { width: 30px; color: var(--ink-soft); font: 600 12px var(--font-mono); flex: none; }
+  .model-rank-label { flex: 1; }
+  .model-rank-btns { display: flex; gap: 3px; flex: none; }
+  .model-rank-btns button {
+    width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line-input);
+    background: var(--surface-3); color: var(--ink); cursor: pointer; padding: 0; font-size: 12px;
+  }
+  .model-rank-btns button:disabled { opacity: .35; cursor: default; }
   .car-card .score-block { text-align: right; }
   .car-card .specs {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; font-size: 12.5px;
@@ -649,6 +659,14 @@
           <tr><td>Peso del color</td><td style="width:90px"><select id="colorPrefsWeight"></select></td></tr>
         </tbody></table>
       </div>
+      <div class="pref-group">
+        <h3>Orden de modelos preferidos</h3>
+        <p class="hint">Ordena de más a menos preferido (marca + modelo) con las flechas. Los de más arriba puntúan mejor; los que no ordenes quedan neutros.</p>
+        <div id="modelRankList"></div>
+        <table class="pref-table" style="margin-top:8px"><tbody>
+          <tr><td>Peso del orden de modelos</td><td style="width:90px"><select id="modelRankWeight"></select></td></tr>
+        </tbody></table>
+      </div>
       <div class="pref-group" style="grid-column:1/-1">
         <h3>Qué mostrar en la tabla comparativa</h3>
         <p class="hint">Desmarca los parámetros que no quieras ver como filas de la tabla.</p>
@@ -745,7 +763,9 @@ const NUMERIC_SLIDER_BOUNDS = {
   owners: { min: 1, max: 6, step: 1 },
   travelTimeMadrid: { min: 0, max: 15, step: 0.5 },
   consumption: { min: 0, max: 15, step: 0.5 },
-  sellerRating: { min: 1, max: 5, step: 0.1 }
+  sellerRating: { min: 1, max: 5, step: 0.1 },
+  transferHours: { min: 0, max: 30, step: 0.5 },
+  transferCost: { min: 0, max: 400, step: 10 }
 };
 
 function defaultPrefs() {
@@ -758,7 +778,9 @@ function defaultPrefs() {
       owners:     { label: 'Propietarios',          green: 1,     red: 3,     weight: 1 },
       travelTimeMadrid: { label: 'Tiempo desde Madrid (avión+coche)', green: 3, red: 6, weight: 2 },
       consumption: { label: 'Consumo (l/100km)', green: 6, red: 8, weight: 1 },
-      sellerRating: { label: 'Valoración del vendedor', green: 4.5, red: 3.5, weight: 0 }
+      sellerRating: { label: 'Valoración del vendedor', green: 4.5, red: 3.5, weight: 0 },
+      transferHours: { label: 'Trayecto en coche hasta Madrid (h)', green: 15, red: 24, weight: 0 },
+      transferCost: { label: 'Coste del trayecto hasta Madrid (€)', green: 150, red: 300, weight: 0 }
     },
     categorical: {
       transmission: { label: 'Cambio',   prefer: 'Automático', options: ['Automático', 'Manual', 'Semiautomático'], weight: 2 },
@@ -769,7 +791,8 @@ function defaultPrefs() {
     accidentFree: { weight: 3 },
     priceRating:  { weight: 2 },
     wishlist: { items: ['Navigationssystem', 'Apple CarPlay', 'Sitzheizung', 'Kamera', 'LED-Scheinwerfer', 'Tempomat'], weight: 2 },
-    colorPrefs: { weight: 0, values: {} }
+    colorPrefs: { weight: 0, values: {} },
+    modelRank: { weight: 0, order: [] }
   };
 }
 
@@ -841,6 +864,8 @@ function mergePrefs(saved) {
   merged.wishlist = merged.wishlist || def.wishlist;
   merged.colorPrefs = merged.colorPrefs || def.colorPrefs;
   merged.colorPrefs.values = merged.colorPrefs.values || {};
+  merged.modelRank = merged.modelRank || def.modelRank;
+  merged.modelRank.order = merged.modelRank.order || [];
   return merged;
 }
 
@@ -1420,6 +1445,32 @@ function estimateApproxCoords(location) {
   return null;
 }
 
+// Trayecto real en coche desde la ubicación del anuncio hasta Madrid (solo la conducción,
+// sin avión) — reutiliza la misma ruta real por carretera (OSRM) que ya usa "Coste final",
+// pero calculada para CUALQUIER anuncio, no solo el que tengas abierto en esa pestaña, para
+// poder valorar tiempo y coste del trayecto como un criterio más en Ubicación. Se guarda en
+// el propio ad para no repetir la llamada en cada render; fcFetchRoute/MADRID_COORDS viven
+// en el módulo de "Coste final", definido más abajo en el script, pero como esto solo se
+// invoca en tiempo de ejecución (no al cargar el script) ya están disponibles.
+function ensureLocationTransfer(ad) {
+  if (ad.locationTransfer !== undefined) return;
+  const coords = estimateApproxCoords(ad.location);
+  if (!coords) { ad.locationTransfer = null; return; }
+  ad.locationTransfer = { km: null, hours: null, cost: null, loading: true };
+  fcFetchRoute(coords[0], coords[1], MADRID_COORDS[0], MADRID_COORDS[1]).then(routed => {
+    if (routed) {
+      const consumption = parseConsumptionValue(ad);
+      const tollCost = Math.round(routed.km * state.costConfig.tollPerKm);
+      const cost = consumption ? Math.round(routed.km * (consumption / 100) * state.costConfig.fuelPricePerL) + tollCost : null;
+      ad.locationTransfer = { km: routed.km, hours: routed.hours, cost };
+    } else {
+      ad.locationTransfer = null;
+    }
+    save();
+    if (state.view === 'cards' || state.view === 'table') render();
+  });
+}
+
 function numericStatus(value, cfg) {
   if (value === null || value === undefined) return null;
   const lowerBetter = cfg.green <= cfg.red;
@@ -1437,7 +1488,11 @@ function evaluateAd(ad, prefs) {
   const parts = []; // {key,label,status:{v,cls},weight,text}
   const P = prefs;
 
-  const numVals = { priceGross: totalPriceWithTax(ad), mileageKm: ad.mileageKm, regYear: regYear(ad), powerPs: ad.powerPs, owners: ad.owners, travelTimeMadrid: estimateTravelTimeFromMadridHours(ad.location), consumption: parseConsumptionValue(ad), sellerRating: ad.sellerRatingScore };
+  const numVals = {
+    priceGross: totalPriceWithTax(ad), mileageKm: ad.mileageKm, regYear: regYear(ad), powerPs: ad.powerPs, owners: ad.owners,
+    travelTimeMadrid: estimateTravelTimeFromMadridHours(ad.location), consumption: parseConsumptionValue(ad), sellerRating: ad.sellerRatingScore,
+    transferHours: ad.locationTransfer ? ad.locationTransfer.hours : null, transferCost: ad.locationTransfer ? ad.locationTransfer.cost : null
+  };
   for (const [k, cfg] of Object.entries(P.numeric)) {
     if (!cfg.weight) continue;
     const st = numericStatus(numVals[k], cfg);
@@ -1476,6 +1531,24 @@ function evaluateAd(ad, prefs) {
     const sign = label ? P.colorPrefs.values[label] : undefined;
     if (sign) {
       parts.push({ key: 'colorPrefs', label: 'Color', status: sign > 0 ? { v: 1, cls: 'good' } : { v: 0, cls: 'bad' }, weight: P.colorPrefs.weight, text: label });
+    }
+  }
+
+  // Orden de modelos preferidos: ranking ordinal (no un simple prefiero/no-prefiero) entre
+  // los distintos "marca + modelo" que el usuario tiene guardados, fijado a mano en
+  // Preferencias con flechas ▲▼. Puntúa 1 el primero de la lista, 0 el último, lineal entre
+  // medias; los modelos que no estén en la lista (ninguno todavía, o alguno nuevo que el
+  // usuario no ha reordenado aún) no puntúan, quedan neutros.
+  if (P.modelRank.weight && P.modelRank.order.length > 1) {
+    const label = [ad.make, ad.model].filter(Boolean).join(' ');
+    const idx = label ? P.modelRank.order.indexOf(label) : -1;
+    if (idx !== -1) {
+      const frac = 1 - idx / (P.modelRank.order.length - 1);
+      parts.push({
+        key: 'modelRank', label: 'Orden de modelos',
+        status: { v: frac, cls: frac >= .66 ? 'good' : (frac >= .33 ? 'warn' : 'bad') },
+        weight: P.modelRank.weight, text: '#' + (idx + 1) + ' de ' + P.modelRank.order.length
+      });
     }
   }
 
@@ -1519,6 +1592,8 @@ function fmtNumParam(key, v) {
   if (key === 'travelTimeMadrid') return fmtHours(v);
   if (key === 'consumption') return String(v).replace('.', ',') + ' l/100km';
   if (key === 'sellerRating') return String(v).replace('.', ',') + ' ★';
+  if (key === 'transferHours') return fmtHours(v);
+  if (key === 'transferCost') return fmtEUR.format(v);
   return String(v);
 }
 function fmtHours(v) {
@@ -1655,6 +1730,31 @@ function distinctAdColors() {
 }
 function setColorPref(btnEl) {
   btnEl.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btnEl));
+}
+
+// Modelos ("marca + modelo") distintos presentes en los anuncios guardados, para poder
+// listarlos en Preferencias y ordenarlos a mano.
+function distinctAdModels() {
+  const seen = new Set();
+  regularAds().forEach(ad => {
+    const label = [ad.make, ad.model].filter(Boolean).join(' ');
+    if (label) seen.add(label);
+  });
+  return [...seen];
+}
+function modelRankMove(btn, dir) {
+  const row = btn.closest('.model-rank-row');
+  const sibling = dir < 0 ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling) return;
+  if (dir < 0) row.parentElement.insertBefore(row, sibling);
+  else row.parentElement.insertBefore(sibling, row);
+  const rows = [...document.querySelectorAll('#modelRankList .model-rank-row')];
+  rows.forEach((r, i) => {
+    r.querySelector('.model-rank-pos').textContent = '#' + (i + 1);
+    const btns = r.querySelectorAll('.model-rank-btns button');
+    btns[0].disabled = i === 0;
+    btns[1].disabled = i === rows.length - 1;
+  });
 }
 function contrastText(hex) {
   const c = hex.replace('#', '');
@@ -2485,7 +2585,7 @@ function renderCriteriaChips() {
 
 function evalAll() {
   return regularAds()
-    .map(ad => ({ ad, ev: evaluateAd(ad, state.prefs) }))
+    .map(ad => { ensureLocationTransfer(ad); return { ad, ev: evaluateAd(ad, state.prefs) }; })
     .sort((a, b) => (b.ev.score ?? -1) - (a.ev.score ?? -1));
 }
 
@@ -2861,7 +2961,11 @@ const ROW_DEFS = [
   {
     id: 'location', label: 'Ubicación', key: 'travelTimeMadrid', fn: ad => {
       const h = estimateTravelTimeFromMadridHours(ad.location);
-      return editableField(ad, 'location', 'text') + (h !== null ? '<div class="car-meta">~' + fmtHours(h) + ' desde Madrid</div>' : '');
+      const t = ad.locationTransfer;
+      let extra = h !== null ? '<div class="car-meta">~' + fmtHours(h) + ' desde Madrid (avión+coche, estimación)</div>' : '';
+      if (t && t.loading) extra += '<div class="car-meta">Calculando trayecto real en coche hasta Madrid…</div>';
+      else if (t) extra += '<div class="car-meta">' + fmtHours(t.hours) + ' · ' + fmtInt.format(t.km) + ' km en coche hasta Madrid' + (t.cost !== null ? ' · ~' + fmtEUR.format(t.cost) + ' combustible+peajes' : '') + '</div>';
+      return editableField(ad, 'location', 'text') + extra;
     }
   },
   {
@@ -3141,6 +3245,22 @@ function renderPrefs() {
     : '<p class="hint">Todavía no hay colores en tus anuncios guardados.</p>';
   document.getElementById('colorPrefsWeight').outerHTML = weightSelect('colorPrefsWeight', P.colorPrefs.weight);
 
+  const seenModels = distinctAdModels();
+  const knownModels = P.modelRank.order.filter(m => seenModels.includes(m));
+  const modelList = knownModels.concat(seenModels.filter(m => !knownModels.includes(m)));
+  document.getElementById('modelRankList').innerHTML = modelList.length
+    ? modelList.map((label, i) => (
+        '<div class="model-rank-row" data-model="' + esc(label) + '">' +
+        '<span class="model-rank-pos">#' + (i + 1) + '</span>' +
+        '<span class="model-rank-label">' + esc(label) + '</span>' +
+        '<div class="model-rank-btns">' +
+        '<button type="button" onclick="modelRankMove(this,-1)"' + (i === 0 ? ' disabled' : '') + '>▲</button>' +
+        '<button type="button" onclick="modelRankMove(this,1)"' + (i === modelList.length - 1 ? ' disabled' : '') + '>▼</button>' +
+        '</div></div>'
+      )).join('')
+    : '<p class="hint">Todavía no hay más de un modelo distinto en tus anuncios guardados.</p>';
+  document.getElementById('modelRankWeight').outerHTML = weightSelect('modelRankWeight', P.modelRank.weight);
+
   document.getElementById('columnChecks').innerHTML = ROW_DEFS.map(r =>
     '<label><input type="checkbox" data-col="' + r.id + '"' + (state.columns[r.id] ? ' checked' : '') + '> ' + esc(r.label) + '</label>'
   ).join('');
@@ -3171,6 +3291,8 @@ function savePrefsFromUI() {
   });
   P.colorPrefs.values = colorValues;
   P.colorPrefs.weight = parseInt(document.getElementById('colorPrefsWeight').value, 10);
+  P.modelRank.order = [...document.querySelectorAll('#modelRankList .model-rank-row')].map(r => r.dataset.model);
+  P.modelRank.weight = parseInt(document.getElementById('modelRankWeight').value, 10);
   document.querySelectorAll('#columnChecks input[type="checkbox"]').forEach(cb => {
     state.columns[cb.dataset.col] = cb.checked;
   });
