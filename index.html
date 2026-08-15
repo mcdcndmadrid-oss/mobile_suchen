@@ -442,6 +442,20 @@
   .car-card .price { font: 600 24px var(--font-mono); letter-spacing: -.01em; }
   .car-card .rating-label { font-size: 11.5px; font-weight: 600; margin-top: 2px; }
   .car-card .total-price-note { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+  .price-delta.good { color: var(--good-text); font-weight: 600; }
+  .price-delta.bad { color: var(--bad-text); font-weight: 600; }
+
+  .color-pref-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; }
+  .color-swatch { width: 15px; height: 15px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 1px var(--line-input); }
+  .color-pref-label { flex: 1; }
+  .color-pref-toggle { display: flex; gap: 3px; flex: none; }
+  .color-pref-toggle button {
+    width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line-input);
+    background: var(--surface-3); color: var(--ink-soft); font: 600 13px var(--font-body); cursor: pointer; padding: 0;
+  }
+  .color-pref-toggle button.active[data-v="1"] { background: var(--good-bg); color: var(--good-text); border-color: transparent; }
+  .color-pref-toggle button.active[data-v="-1"] { background: var(--bad-bg); color: var(--bad-text); border-color: transparent; }
+  .color-pref-toggle button.active[data-v="0"] { background: var(--surface-2); color: var(--ink); border-color: transparent; }
   .car-card .score-block { text-align: right; }
   .car-card .specs {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; font-size: 12.5px;
@@ -469,6 +483,7 @@
   .om-brand-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; flex: none; }
   .om-brand-dot.bmw { background: #1d63c9; }
   .om-brand-dot.audi { background: #b31217; }
+  .om-brand-dot.škoda { background: #4ba82e; }
   .om-badge-disc {
     display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
     color: var(--warn-text); background: var(--warn-bg); border-radius: 5px; padding: 1px 6px; margin-left: 6px;
@@ -626,6 +641,14 @@
           <tr><td>Peso del equipamiento</td><td style="width:90px"><select id="wishlistWeight"></select></td></tr>
         </tbody></table>
       </div>
+      <div class="pref-group">
+        <h3>Colores</h3>
+        <p class="hint">Valora cada color que aparece en tus anuncios guardados: + lo prefieres, − lo evitas.</p>
+        <div id="colorPrefsList"></div>
+        <table class="pref-table" style="margin-top:8px"><tbody>
+          <tr><td>Peso del color</td><td style="width:90px"><select id="colorPrefsWeight"></select></td></tr>
+        </tbody></table>
+      </div>
       <div class="pref-group" style="grid-column:1/-1">
         <h3>Qué mostrar en la tabla comparativa</h3>
         <p class="hint">Desmarca los parámetros que no quieras ver como filas de la tabla.</p>
@@ -721,7 +744,8 @@ const NUMERIC_SLIDER_BOUNDS = {
   powerPs: { min: 40, max: 500, step: 10 },
   owners: { min: 1, max: 6, step: 1 },
   travelTimeMadrid: { min: 0, max: 15, step: 0.5 },
-  consumption: { min: 0, max: 15, step: 0.5 }
+  consumption: { min: 0, max: 15, step: 0.5 },
+  sellerRating: { min: 1, max: 5, step: 0.1 }
 };
 
 function defaultPrefs() {
@@ -733,16 +757,19 @@ function defaultPrefs() {
       powerPs:    { label: 'Potencia (CV)',         green: 150,   red: 110,   weight: 1 },
       owners:     { label: 'Propietarios',          green: 1,     red: 3,     weight: 1 },
       travelTimeMadrid: { label: 'Tiempo desde Madrid (avión+coche)', green: 3, red: 6, weight: 2 },
-      consumption: { label: 'Consumo (l/100km)', green: 6, red: 8, weight: 1 }
+      consumption: { label: 'Consumo (l/100km)', green: 6, red: 8, weight: 1 },
+      sellerRating: { label: 'Valoración del vendedor', green: 4.5, red: 3.5, weight: 0 }
     },
     categorical: {
       transmission: { label: 'Cambio',   prefer: 'Automático', options: ['Automático', 'Manual', 'Semiautomático'], weight: 2 },
       fuel:         { label: 'Combustible', prefer: '', options: ['Gasolina', 'Diésel', 'Híbrido', 'Eléctrico'], weight: 1 },
-      sellerType:   { label: 'Vendedor', prefer: 'DEALER', options: ['DEALER', 'FOR_SALE_BY_OWNER'], optionLabels: { DEALER: 'Profesional', FOR_SALE_BY_OWNER: 'Particular' }, weight: 1 }
+      sellerType:   { label: 'Vendedor', prefer: 'DEALER', options: ['DEALER', 'FOR_SALE_BY_OWNER'], optionLabels: { DEALER: 'Profesional', FOR_SALE_BY_OWNER: 'Particular' }, weight: 1 },
+      sportPackage: { label: 'Paquete deportivo', prefer: '', options: ['M Sport', 'S line', 'R-Line', 'AMG Line', 'Sportline', 'Black Edition'], weight: 0 }
     },
     accidentFree: { weight: 3 },
     priceRating:  { weight: 2 },
-    wishlist: { items: ['Navigationssystem', 'Apple CarPlay', 'Sitzheizung', 'Kamera', 'LED-Scheinwerfer', 'Tempomat'], weight: 2 }
+    wishlist: { items: ['Navigationssystem', 'Apple CarPlay', 'Sitzheizung', 'Kamera', 'LED-Scheinwerfer', 'Tempomat'], weight: 2 },
+    colorPrefs: { weight: 0, values: {} }
   };
 }
 
@@ -812,6 +839,8 @@ function mergePrefs(saved) {
   merged.accidentFree = merged.accidentFree || def.accidentFree;
   merged.priceRating = merged.priceRating || def.priceRating;
   merged.wishlist = merged.wishlist || def.wishlist;
+  merged.colorPrefs = merged.colorPrefs || def.colorPrefs;
+  merged.colorPrefs.values = merged.colorPrefs.values || {};
   return merged;
 }
 
@@ -828,6 +857,12 @@ function load() {
   s.columns = Object.assign(defaultColumns(), s.columns || {});
   s.costConfig = Object.assign(defaultCostConfig(), s.costConfig || {});
   s.view = ['table', 'map', 'search', 'models', 'finalcost'].includes(s.view) ? s.view : 'cards';
+  // Anuncios capturados antes de que existiera este campo: el título/highlights/categoría
+  // ya estaban guardados, así que se puede detectar el paquete deportivo retroactivamente
+  // sin tener que volver a capturarlos.
+  s.ads.forEach(ad => {
+    if (ad.sportPackage === undefined) ad.sportPackage = detectSportPackage(ad.title, ad.highlights, ad.category);
+  });
   return s;
 }
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -901,6 +936,25 @@ function parseInput(text) {
   return recs;
 }
 
+// Paquete deportivo/línea de equipamiento (M Sport, S line, R-Line...): mobile.de no lo
+// expone como campo estructurado, casi nunca aparece en "features" (por eso el buscador
+// de equipamiento deseado no lo encontraba) — solo en el título, la categoría o los
+// highlights. Se detecta por palabra clave y se guarda como campo propio normalizado,
+// editable a mano y usable como preferencia igual que cambio o combustible.
+const SPORT_PACKAGE_MAP = {
+  'M Sport': 'M Sport', 'M-Sport': 'M Sport', 'M Sportpaket': 'M Sport',
+  'S line': 'S line', 'S-Line': 'S line',
+  'R-Line': 'R-Line', 'R Line': 'R-Line',
+  'AMG Line': 'AMG Line', 'AMG-Line': 'AMG Line',
+  'Sportline': 'Sportline', 'Sport Line': 'Sportline',
+  'Black Edition': 'Black Edition'
+};
+function detectSportPackage(title, highlights, category) {
+  const haystack = [title, category, ...(highlights || [])].filter(Boolean).join(' ').toLowerCase();
+  const key = Object.keys(SPORT_PACKAGE_MAP).find(k => haystack.includes(k.toLowerCase()));
+  return key ? SPORT_PACKAGE_MAP[key] : null;
+}
+
 /* ---------- página de resultados de búsqueda (bulk import) ----------
    mobile.de/es/vehículos/buscar.html (y equivalentes) incrustan un resumen
    ligero de cada anuncio en "searchResults.listings", con claves abreviadas
@@ -943,6 +997,7 @@ function parseSearchListingChunk(chunk) {
     make: makeM ? unescapeJsonStr(makeM[1]) : null,
     model: modelM ? unescapeJsonStr(modelM[1]) : null,
     category: attr.c || null,
+    sportPackage: detectSportPackage(title, [], attr.c),
     priceGross: priceM ? toNum(priceM[1]) : null,
     priceRating: ratingM ? { rating: ratingM[1], label: unescapeJsonStr(ratingM[2]) } : null,
     firstRegistration: attr.fr || null,
@@ -1006,11 +1061,13 @@ function normalizeEntry(entry, capturedUrl) {
     const flat = (ad.attributes && ad.attributes[0]) ? ad.attributes[0].map(a => a.value) : [];
     const rec = {
       id: ad.id || Date.now(), url: capturedUrl || '', title: ad.title || 'Anuncio retirado',
-      make: null, model: null, category: null, priceGross: null, priceRating: null,
+      make: null, model: null, category: null, sportPackage: null, priceGross: null, priceRating: null,
       firstRegistration: null, mileageKm: null, powerPs: null, fuel: null,
       transmission: null, owners: null, hu: null, damageCondition: null,
       climatisation: null, color: null, seats: null, sellerType: null, sellerName: null,
+      sellerRatingScore: null, sellerRatingCount: null,
       location: null, features: [], highlights: [],
+      createdAt: null, renewedAt: null,
       withdrawn: true, capturedAt: new Date().toISOString().slice(0, 10)
     };
     for (const v of flat) {
@@ -1032,6 +1089,7 @@ function normalizeEntry(entry, capturedUrl) {
     title: ad.title || [ad.make, ad.model].filter(Boolean).join(' '),
     make: ad.make, model: ad.model,
     category: attr('category'), modelRange: attr('modelRange'),
+    sportPackage: detectSportPackage(ad.title, ad.highlights, attr('category')),
     priceGross: ad.price ? ad.price.grossAmount : null,
     priceRating: ad.priceRating ? { rating: ad.priceRating.rating, label: ad.priceRating.ratingLabel } : null,
     firstRegistration: attr('firstRegistration'),
@@ -1051,8 +1109,11 @@ function normalizeEntry(entry, capturedUrl) {
     color: attr('color'), interior: attr('interior'), seats: toNum(attr('numSeats')),
     sellerType: ad.contactInfo ? ad.contactInfo.sellerType : null,
     sellerName: ad.contactInfo ? ad.contactInfo.name : null,
+    sellerRatingScore: (ad.contactInfo && ad.contactInfo.rating) ? ad.contactInfo.rating.score : null,
+    sellerRatingCount: (ad.contactInfo && ad.contactInfo.rating) ? ad.contactInfo.rating.totalCount : null,
     location: ad.contactInfo ? [ad.contactInfo.address1, ad.contactInfo.address2].filter(Boolean).join(' ') : null,
     features: ad.features || [], highlights: ad.highlights || [],
+    createdAt: ad.created || null, renewedAt: ad.renewed || null,
     capturedAt: new Date().toISOString().slice(0, 10)
   };
 }
@@ -1085,6 +1146,9 @@ function parseNextFlightAd(text, capturedUrl) {
   let features = [];
   if (featM) { try { features = JSON.parse(featM[1]); } catch (e) { features = []; } }
   const vehCondM = norm.match(/"vehicleCondition":"([^"]+)"/);
+  const ratingM2 = norm.match(/"rating":\{"count":\d+,"totalCount":(\d+),"score":([\d.]+)/);
+  const createdM = norm.match(/"created":(\d+)/);
+  const renewedM = norm.match(/"renewed":(\d+)/);
 
   return {
     id: idM ? parseInt(idM[1], 10) : Date.now(),
@@ -1093,6 +1157,7 @@ function parseNextFlightAd(text, capturedUrl) {
     make: makeM ? makeM[1] : null,
     model: modelM ? modelM[1] : null,
     category: attr('category'), modelRange: attr('modelRange'),
+    sportPackage: detectSportPackage(titleM ? unescapeJsonStr(titleM[1]) : '', [], attr('category')),
     priceGross: priceM ? Math.round(parseFloat(priceM[1])) : null,
     priceRating: ratingM ? { rating: ratingM[1], label: unescapeJsonStr(ratingM[2]) } : null,
     firstRegistration: attr('firstRegistration'),
@@ -1112,8 +1177,12 @@ function parseNextFlightAd(text, capturedUrl) {
     color: attr('color'), interior: attr('interior'), seats: toNum(attr('numSeats')),
     sellerType: sellerM ? sellerM[2] : null,
     sellerName: sellerM ? unescapeJsonStr(sellerM[1]) : null,
+    sellerRatingScore: ratingM2 ? parseFloat(ratingM2[2]) : null,
+    sellerRatingCount: ratingM2 ? parseInt(ratingM2[1], 10) : null,
     location: addrM ? [unescapeJsonStr(addrM[1]), unescapeJsonStr(addrM[2])].filter(Boolean).join(' ') : null,
     features, highlights: [],
+    createdAt: createdM ? parseInt(createdM[1], 10) : null,
+    renewedAt: renewedM ? parseInt(renewedM[1], 10) : null,
     capturedAt: new Date().toISOString().slice(0, 10)
   };
 }
@@ -1162,6 +1231,27 @@ function totalPriceWithTax(ad) {
   if (ad.priceGross === null || ad.priceGross === undefined) return null;
   const tax = registrationTaxAmount(ad);
   return ad.priceGross + (tax || 0);
+}
+
+// Histórico de precio: al volver a capturar un anuncio ya guardado, upsertRecords() añade
+// aquí el precio anterior antes de sustituirlo. Solo mostramos la diferencia con la última
+// captura conocida, no todo el historial.
+function priceDeltaNote(ad) {
+  if (!ad.priceHistory || !ad.priceHistory.length || ad.priceGross === null || ad.priceGross === undefined) return null;
+  const prev = ad.priceHistory[ad.priceHistory.length - 1];
+  if (prev.price === null || prev.price === undefined) return null;
+  const diff = ad.priceGross - prev.price;
+  if (diff === 0) return null;
+  const down = diff < 0;
+  return '<span class="price-delta ' + (down ? 'good' : 'bad') + '">' + (down ? '↓' : '↑') + ' ' + fmtEUR.format(Math.abs(diff)) + ' desde ' + esc(prev.at) + '</span>';
+}
+
+// Antigüedad del anuncio (fecha de publicación/renovación en mobile.de, no la fecha en
+// que TÚ lo capturaste — eso es ad.capturedAt, un dato distinto).
+function adAgeDays(ad) {
+  const ts = ad.renewedAt || ad.createdAt;
+  if (!ts) return null;
+  return Math.floor((Date.now() / 1000 - ts) / 86400);
 }
 
 /* ---------- scoring ---------- */
@@ -1347,7 +1437,7 @@ function evaluateAd(ad, prefs) {
   const parts = []; // {key,label,status:{v,cls},weight,text}
   const P = prefs;
 
-  const numVals = { priceGross: totalPriceWithTax(ad), mileageKm: ad.mileageKm, regYear: regYear(ad), powerPs: ad.powerPs, owners: ad.owners, travelTimeMadrid: estimateTravelTimeFromMadridHours(ad.location), consumption: parseConsumptionValue(ad) };
+  const numVals = { priceGross: totalPriceWithTax(ad), mileageKm: ad.mileageKm, regYear: regYear(ad), powerPs: ad.powerPs, owners: ad.owners, travelTimeMadrid: estimateTravelTimeFromMadridHours(ad.location), consumption: parseConsumptionValue(ad), sellerRating: ad.sellerRatingScore };
   for (const [k, cfg] of Object.entries(P.numeric)) {
     if (!cfg.weight) continue;
     const st = numericStatus(numVals[k], cfg);
@@ -1374,6 +1464,19 @@ function evaluateAd(ad, prefs) {
   if (P.priceRating.weight && ad.priceRating && PRICE_RATING_MAP[ad.priceRating.rating]) {
     const m = PRICE_RATING_MAP[ad.priceRating.rating];
     parts.push({ key: 'priceRating', label: 'Valoración precio', status: { v: m.v, cls: m.cls }, weight: P.priceRating.weight, text: ad.priceRating.label });
+  }
+
+  // Preferencia de color: a diferencia de las categóricas normales (un único "prefiero"),
+  // el usuario valora cada color con +1/0/-1 en Preferencias; solo puntúa si el color de
+  // ESTE anuncio tiene una valoración distinta de neutro, para no penalizar colores sobre
+  // los que aún no ha opinado.
+  if (P.colorPrefs.weight) {
+    const info = colorInfo(ad.color);
+    const label = info ? info.es : ad.color;
+    const sign = label ? P.colorPrefs.values[label] : undefined;
+    if (sign) {
+      parts.push({ key: 'colorPrefs', label: 'Color', status: sign > 0 ? { v: 1, cls: 'good' } : { v: 0, cls: 'bad' }, weight: P.colorPrefs.weight, text: label });
+    }
   }
 
   let wl = null;
@@ -1415,6 +1518,7 @@ function fmtNumParam(key, v) {
   if (key === 'powerPs') return fmtInt.format(v) + ' CV';
   if (key === 'travelTimeMadrid') return fmtHours(v);
   if (key === 'consumption') return String(v).replace('.', ',') + ' l/100km';
+  if (key === 'sellerRating') return String(v).replace('.', ',') + ' ★';
   return String(v);
 }
 function fmtHours(v) {
@@ -1535,6 +1639,23 @@ function colorInfo(v) {
   const key = Object.keys(COLOR_MAP).find(k => v.toLowerCase().includes(k.toLowerCase()));
   return key ? COLOR_MAP[key] : null;
 }
+
+// Colores distintos presentes en los anuncios guardados (no en resultados de búsqueda,
+// que no se puntúan), normalizados igual que la celda de color de la tabla, para poder
+// listarlos en Preferencias y valorarlos uno a uno.
+function distinctAdColors() {
+  const seen = new Map();
+  regularAds().forEach(ad => {
+    const info = colorInfo(ad.color);
+    const label = info ? info.es : ad.color;
+    if (!label || seen.has(label)) return;
+    seen.set(label, info ? info.hex : null);
+  });
+  return [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+function setColorPref(btnEl) {
+  btnEl.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btnEl));
+}
 function contrastText(hex) {
   const c = hex.replace('#', '');
   const r = parseInt(c.substr(0, 2), 16) / 255, g = parseInt(c.substr(2, 2), 16) / 255, b = parseInt(c.substr(4, 2), 16) / 255;
@@ -1650,6 +1771,16 @@ const OM_CATEGORIES = [
         basePriceEur: 49450, discontinued: false,
         officialUrl: 'https://www.audi.de/de/neuwagen/a5/a5-avant/',
         sourceNote: 'audi.de (potencia, precio) + ADAC (resto). Audi ya no usa la etiqueta "35 TFSI" — el motor equivalente actual se llama "TFSI 110 kW".'
+      },
+      {
+        id: 'skoda-octavia-15tsi-sportline', brand: 'Škoda', name: 'Škoda Octavia Combi Sportline 1.5 TSI', fuel: 'Gasolina (microhíbrido 48V)', drive: 'Delantera (FWD)',
+        powerKw: 110, powerPs: 150, torqueNm: 250, displacementCc: 1498, cylinders: 4,
+        transmission: '7 velocidades DSG automática', accel0100: 8.6, topSpeed: 225,
+        consumptionWltp: '5,0', co2Wltp: '114', bootVolume: '640 / 1.700 l',
+        lengthMm: 4698, widthMm: 1829, heightMm: 1468, wheelbaseMm: 2686, weightKg: 1403,
+        basePriceEur: 42800, discontinued: false,
+        officialUrl: 'https://www.km77.com/coches/skoda/octavia/2024/combi/estandar/octavia-combi-sportline-15-tsi-150-cv-dsg/datos',
+        sourceNote: 'km77.com (precio España, enero 2026). Motor gasolina microhíbrido 48V: 150 CV + 18 CV de asistencia eléctrica.'
       }
     ]
   },
@@ -1828,6 +1959,10 @@ function omMatchModel(ad) {
     }
     if (isDiesel) return highTier ? 'audi-a4-40tdi' : 'audi-a4-35tdi';
     return highTier ? 'audi-a4-40tfsiq' : 'audi-a4-35tfsi';
+  }
+  if (make.includes('koda') || make.includes('škoda')) {
+    if (has('octavia') && has('sportline') && (has('1.5') || has('1,5') || has('15 tsi'))) return 'skoda-octavia-15tsi-sportline';
+    return null;
   }
   return null;
 }
@@ -2659,7 +2794,13 @@ const ROW_DEFS = [
       return t !== null ? fmtEUR.format(t) : '<span class="hint">—</span>';
     }
   },
-  { id: 'price', label: 'Precio', fn: ad => editableField(ad, 'priceGross', 'number', ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : undefined, '€') },
+  {
+    id: 'price', label: 'Precio', fn: ad => {
+      const base = editableField(ad, 'priceGross', 'number', ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : undefined, '€');
+      const delta = priceDeltaNote(ad);
+      return base + (delta ? '<div class="car-meta">' + delta + '</div>' : '');
+    }
+  },
   {
     id: 'registrationTax', label: 'Impuesto matriculación', fn: ad => {
       const rate = registrationTaxRate(parseCo2Value(ad));
@@ -2711,6 +2852,13 @@ const ROW_DEFS = [
       '<br><span class="car-meta">' + editableField(ad, 'sellerName', 'text') + '</span>'
   },
   {
+    id: 'sellerRating', label: 'Valoración vendedor', key: 'sellerRating', numeric: true,
+    fn: ad => ad.sellerRatingScore !== null && ad.sellerRatingScore !== undefined
+      ? String(ad.sellerRatingScore).replace('.', ',') + ' ★' + (ad.sellerRatingCount ? ' (' + ad.sellerRatingCount + ')' : '')
+      : '<span class="hint">—</span>'
+  },
+  { id: 'sportPackage', label: 'Paquete deportivo', key: 'sportPackage', fn: ad => editableField(ad, 'sportPackage', 'text') },
+  {
     id: 'location', label: 'Ubicación', key: 'travelTimeMadrid', fn: ad => {
       const h = estimateTravelTimeFromMadridHours(ad.location);
       return editableField(ad, 'location', 'text') + (h !== null ? '<div class="car-meta">~' + fmtHours(h) + ' desde Madrid</div>' : '');
@@ -2737,6 +2885,14 @@ const ROW_DEFS = [
     id: 'weaknesses', label: 'Puntos débiles', fn: (ad, ev) => {
       const list = ev.parts.filter(p => p.status.cls === 'bad');
       return list.length ? '<div class="chips">' + list.map(p => '<span class="chip bad">' + esc(p.label) + '</span>').join('') + '</div>' : '<span class="hint">—</span>';
+    }
+  },
+  {
+    id: 'adAge', label: 'Antigüedad del anuncio', fn: ad => {
+      const days = adAgeDays(ad);
+      if (days === null) return '<span class="hint">—</span>';
+      return 'Publicado hace ' + days + (days === 1 ? ' día' : ' días') +
+        (ad.createdAt && ad.renewedAt && ad.renewedAt !== ad.createdAt ? ' (renovado)' : '');
     }
   },
   { id: 'captured', label: 'Capturado', fn: ad => esc(ad.capturedAt) }
@@ -2779,6 +2935,7 @@ function renderCards() {
       '<div class="price-row">' +
       '<div><span class="price">' + editableField(ad, 'priceGross', 'number', ad.priceGross !== null && ad.priceGross !== undefined ? fmtEUR.format(ad.priceGross) : undefined, '€') + '</span>' +
       (totalPriceWithTax(ad) !== null ? '<div class="total-price-note">Total con impuesto: ' + fmtEUR.format(totalPriceWithTax(ad)) + '</div>' : '') +
+      (priceDeltaNote(ad) ? '<div class="total-price-note">' + priceDeltaNote(ad) + '</div>' : '') +
       (ad.priceRating ? '<div class="rating-label"' + (priceRatingColors(ad.priceRating.rating) ? ' style="color:' + priceRatingColors(ad.priceRating.rating).text + '"' : '') + '>' + esc(ad.priceRating.label) + '</div>' : '') +
       '</div>' +
       '<div class="score-block"><span class="score-num">' + (ev.score ?? '—') + '<small> /100</small></span>' +
@@ -2968,6 +3125,22 @@ function renderPrefs() {
   document.getElementById('wishlistInput').value = P.wishlist.items.join(', ');
   document.getElementById('wishlistWeight').outerHTML = weightSelect('wishlistWeight', P.wishlist.weight);
 
+  const colors = distinctAdColors();
+  document.getElementById('colorPrefsList').innerHTML = colors.length
+    ? colors.map(([label, hex]) => {
+        const val = P.colorPrefs.values[label] || 0;
+        return '<div class="color-pref-row" data-color="' + esc(label) + '">' +
+          (hex ? '<span class="color-swatch" style="background:' + hex + '"></span>' : '<span class="color-swatch"></span>') +
+          '<span class="color-pref-label">' + esc(label) + '</span>' +
+          '<div class="color-pref-toggle">' +
+          [['-1', '−'], ['0', '='], ['1', '+']].map(([v, sym]) =>
+            '<button type="button" data-v="' + v + '" class="' + (String(val) === v ? 'active' : '') + '" onclick="setColorPref(this)">' + sym + '</button>'
+          ).join('') +
+          '</div></div>';
+      }).join('')
+    : '<p class="hint">Todavía no hay colores en tus anuncios guardados.</p>';
+  document.getElementById('colorPrefsWeight').outerHTML = weightSelect('colorPrefsWeight', P.colorPrefs.weight);
+
   document.getElementById('columnChecks').innerHTML = ROW_DEFS.map(r =>
     '<label><input type="checkbox" data-col="' + r.id + '"' + (state.columns[r.id] ? ' checked' : '') + '> ' + esc(r.label) + '</label>'
   ).join('');
@@ -2990,6 +3163,14 @@ function savePrefsFromUI() {
   P.priceRating.weight = parseInt(document.getElementById('flag_rating_w').value, 10);
   P.wishlist.items = document.getElementById('wishlistInput').value.split(',').map(s => s.trim()).filter(Boolean);
   P.wishlist.weight = parseInt(document.getElementById('wishlistWeight').value, 10);
+  const colorValues = {};
+  document.querySelectorAll('.color-pref-row').forEach(row => {
+    const active = row.querySelector('button.active');
+    const v = active ? parseInt(active.dataset.v, 10) : 0;
+    if (v) colorValues[row.dataset.color] = v;
+  });
+  P.colorPrefs.values = colorValues;
+  P.colorPrefs.weight = parseInt(document.getElementById('colorPrefsWeight').value, 10);
   document.querySelectorAll('#columnChecks input[type="checkbox"]').forEach(cb => {
     state.columns[cb.dataset.col] = cb.checked;
   });
@@ -3021,6 +3202,17 @@ function upsertRecords(recs) {
       // (y de paso quedaría expuesto a "Vaciar resultados de búsqueda", que solo debe
       // tocar la tabla de búsqueda, nunca los anuncios guardados en Tarjetas/Tabla).
       if (!state.ads[existing].fromSearch && rec.fromSearch) continue;
+      const prev = state.ads[existing];
+      // Conservar entre capturas: ediciones manuales, el cálculo de "Coste final" ya
+      // hecho, cuándo se capturó por primera vez, y el precio anterior si ha cambiado
+      // (para poder avisar "bajó/subió X € desde tu última captura").
+      rec._edited = prev._edited;
+      rec.finalCost = prev.finalCost;
+      rec.firstCapturedAt = prev.firstCapturedAt || prev.capturedAt;
+      rec.priceHistory = prev.priceHistory || [];
+      if (prev.priceGross !== null && prev.priceGross !== undefined && prev.priceGross !== rec.priceGross) {
+        rec.priceHistory = rec.priceHistory.concat([{ price: prev.priceGross, at: prev.capturedAt }]);
+      }
       state.ads[existing] = rec; updated++;
     }
     else { state.ads.push(rec); added++; }
@@ -3296,26 +3488,56 @@ function applySharedSnapshot(snap) {
 // solo, se pregunta: puede haber querido quitar a propósito algún anuncio que sigue en el
 // archivo publicado, y forzarlo de vuelta sin avisar sería confuso.
 let pendingSharedAds = [];
+let pendingPriceDrops = [];
 async function checkForSharedUpdates() {
   const snap = await loadSharedSnapshot();
   if (!snap) return;
   const knownIds = new Set(state.ads.map(a => String(a.id)));
   pendingSharedAds = snap.ads.filter(a => !knownIds.has(String(a.id)));
-  if (!pendingSharedAds.length) return;
+
+  // Aviso de bajada de precio: comparamos, solo para anuncios que YA teníamos, el precio
+  // publicado en cars.json contra el que tenemos guardado localmente. No toca nada por sí
+  // solo — el precio nuevo solo se aplica si el usuario pulsa "Añadir", igual que los
+  // anuncios nuevos.
+  const byId = {};
+  state.ads.forEach(a => { byId[String(a.id)] = a; });
+  pendingPriceDrops = snap.ads.filter(a => {
+    const local = byId[String(a.id)];
+    return local && !local.fromSearch && local.priceGross != null && a.priceGross != null && a.priceGross < local.priceGross;
+  }).map(a => ({ id: a.id, title: byId[String(a.id)].title, from: byId[String(a.id)].priceGross, to: a.priceGross }));
+
+  if (!pendingSharedAds.length && !pendingPriceDrops.length) return;
   const notice = document.getElementById('syncNotice');
-  document.getElementById('syncNoticeText').textContent =
-    'Hay ' + pendingSharedAds.length + ' ' + (pendingSharedAds.length === 1 ? 'anuncio nuevo' : 'anuncios nuevos') + ' en el catálogo publicado (cars.json) que no tienes todavía.';
+  const parts = [];
+  if (pendingSharedAds.length) {
+    parts.push('Hay ' + pendingSharedAds.length + ' ' + (pendingSharedAds.length === 1 ? 'anuncio nuevo' : 'anuncios nuevos') + ' en el catálogo publicado (cars.json) que no tienes todavía.');
+  }
+  if (pendingPriceDrops.length) {
+    parts.push((pendingPriceDrops.length === 1 ? 'Un anuncio que ya tenías ha bajado de precio: ' : pendingPriceDrops.length + ' anuncios que ya tenías han bajado de precio: ') +
+      pendingPriceDrops.map(d => esc(d.title) + ' (' + fmtEUR.format(d.from) + ' → ' + fmtEUR.format(d.to) + ')').join(', ') + '.');
+  }
+  document.getElementById('syncNoticeText').innerHTML = parts.join(' ');
   notice.hidden = false;
 }
 function addPendingSharedAds() {
   state.ads = state.ads.concat(pendingSharedAds);
+  const dropsById = {};
+  pendingPriceDrops.forEach(d => { dropsById[String(d.id)] = d; });
+  state.ads.forEach(ad => {
+    const drop = dropsById[String(ad.id)];
+    if (!drop || ad.fromSearch) return;
+    ad.priceHistory = (ad.priceHistory || []).concat([{ price: drop.from, at: ad.capturedAt }]);
+    ad.priceGross = drop.to;
+  });
   pendingSharedAds = [];
+  pendingPriceDrops = [];
   document.getElementById('syncNotice').hidden = true;
   save();
   render();
 }
 function dismissSyncNotice() {
   pendingSharedAds = [];
+  pendingPriceDrops = [];
   document.getElementById('syncNotice').hidden = true;
 }
 
