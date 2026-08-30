@@ -622,6 +622,122 @@
         "km": 1702,
         "hours": 17.86513888888889,
         "cost": null
+      },
+      "finalCost": {
+        "airportCode": "DUS",
+        "fields": {
+          "exportPlates": 300,
+          "tempInsurance": 0,
+          "flight": 100,
+          "fuel": 142,
+          "tolls": 125,
+          "hotel": 100,
+          "itv": 220,
+          "registration": 100,
+          "plates": 40,
+          "gestoria": 150,
+          "reducedFile": 0,
+          "fuelPricePerL": 1.6,
+          "tollPerKm": 0.07
+        },
+        "route": {
+          "coords": [
+            [
+              51.292485,
+              6.760695
+            ],
+            [
+              50.649929,
+              6.000244
+            ],
+            [
+              50.689009,
+              5.619263
+            ],
+            [
+              50.529754,
+              5.097716
+            ],
+            [
+              50.447095,
+              3.696422
+            ],
+            [
+              50.021154,
+              2.882718
+            ],
+            [
+              48.832131,
+              2.491953
+            ],
+            [
+              48.540496,
+              1.905054
+            ],
+            [
+              47.903907,
+              1.847661
+            ],
+            [
+              47.470322,
+              0.76962
+            ],
+            [
+              46.55399,
+              0.282371
+            ],
+            [
+              46.169298,
+              -0.510537
+            ],
+            [
+              45.755833,
+              -0.672287
+            ],
+            [
+              44.985232,
+              -0.427952
+            ],
+            [
+              44.648282,
+              -0.837155
+            ],
+            [
+              44.402368,
+              -0.819223
+            ],
+            [
+              43.69598,
+              -1.230862
+            ],
+            [
+              43.341652,
+              -1.728918
+            ],
+            [
+              43.285624,
+              -2.355894
+            ],
+            [
+              42.709211,
+              -2.871319
+            ],
+            [
+              42.315125,
+              -3.702759
+            ],
+            [
+              40.737468,
+              -3.567651
+            ],
+            [
+              40.4176,
+              -3.70365
+            ]
+          ],
+          "km": 1780,
+          "hours": 18.70788888888889
+        }
       }
     },
     {
@@ -2021,6 +2137,421 @@
         "co2Emissions": true,
         "energyConsumption": true
       }
+    },
+    {
+      "id": 456629736,
+      "url": "https://suchen.mobile.de/auto-inserat/bmw-318ia-m-sportpaket-hud-ahk-service-incl-1-hd-vaterstetten-bei-m%C3%BCnchen/456629736.html",
+      "title": "BMW 318iA,M Sportpaket,HUD,AHK,Service incl,1.Hd",
+      "make": "BMW",
+      "model": "318",
+      "category": "Kombi",
+      "modelRange": "G81",
+      "sportPackage": "M Sport",
+      "priceGross": 34900,
+      "priceRating": {
+        "rating": "VERY_GOOD_PRICE",
+        "label": "Sehr guter Preis"
+      },
+      "firstRegistration": "05/2025",
+      "mileageKm": 14296,
+      "powerPs": 156,
+      "fuel": "Benzin, E10-geeignet",
+      "transmission": "Automatik",
+      "cubicCapacity": 1998,
+      "cylinder": 4,
+      "engineType": "Verbrennungsmotor",
+      "owners": 1,
+      "hu": "Neu",
+      "damageCondition": null,
+      "emissionClass": "Euro 6e",
+      "climatisation": "3-Zonen-Klimaautomatik",
+      "emissionsSticker": "4 (Grün)",
+      "co2Emissions": "151 g/km",
+      "energyConsumption": "6,7 l/100km",
+      "vehicleCondition": null,
+      "color": "Schwarz Metallic",
+      "interior": "Alcantara, Schwarz",
+      "seats": 5,
+      "sellerType": "DEALER",
+      "sellerName": "BW Classic Cars and Bikes",
+      "sellerRatingScore": 4.8,
+      "sellerRatingCount": 86,
+      "location": "Max-Loidl Weg 4 DE-85598 Vaterstetten bei München",
+      "features": [
+        "Abgedunkelte Scheiben",
+        "ABS",
+        "Abstandstempomat",
+        "Abstandswarner",
+        "Adaptives Fahrwerk",
+        "Adaptives Kurvenlicht",
+        "Alarmanlage",
+        "Ambiente-Beleuchtung",
+        "Android Auto",
+        "Anhängerkupplung schwenkbar",
+        "Anhängerrangierassistent",
+        "Apple CarPlay",
+        "Armlehne",
+        "Ausparkassistent",
+        "Berganfahrassistent",
+        "Blendfreies Fernlicht",
+        "Bluetooth",
+        "Bordcomputer",
+        "Dachreling",
+        "Elektr. Fensterheber",
+        "Elektr. Heckklappe",
+        "Elektr. Seitenspiegel",
+        "Elektr. Seitenspiegel anklappbar",
+        "Elektr. Wegfahrsperre",
+        "ESP",
+        "Fernlichtassistent",
+        "Freisprecheinrichtung",
+        "Garantie",
+        "Gepäckraumabtrennung",
+        "Geschwindigkeitsbegrenzer",
+        "Head-Up Display",
+        "Heckantrieb",
+        "Induktionsladen für Smartphones",
+        "Innenspiegel autom. abblendend",
+        "Isofix",
+        "Isofix Beifahrersitz",
+        "Lederlenkrad",
+        "LED-Scheinwerfer",
+        "LED-Tagfahrlicht",
+        "Leichtmetallfelgen",
+        "Lichtsensor",
+        "Lordosenstütze",
+        "Müdigkeitswarner",
+        "Multifunktionslenkrad",
+        "Musikstreaming integriert",
+        "Navigationssystem",
+        "Nebelscheinwerfer",
+        "Nichtraucher-Fahrzeug",
+        "Notbremsassistent",
+        "Notrufsystem",
+        "Partikelfilter",
+        "Radio DAB",
+        "Regensensor",
+        "Reifendruckkontrolle",
+        "Schaltwippen",
+        "Scheckheftgepflegt",
+        "Schlüssellose Zentralverriegelung (Keyless)",
+        "Servolenkung",
+        "Sitzheizung",
+        "Skisack",
+        "Sommerreifen",
+        "Soundsystem",
+        "Sportfahrwerk",
+        "Sportpaket",
+        "Sportsitze",
+        "Sprachsteuerung",
+        "Spurhalteassistent",
+        "Start/Stopp-Automatik",
+        "Totwinkel-Assistent",
+        "Touchscreen",
+        "Traktionskontrolle",
+        "Tuner/Radio",
+        "Umklappbarer Beifahrersitz",
+        "USB",
+        "Verkehrszeichenerkennung",
+        "Volldigitales Kombiinstrument",
+        "Winterreifen",
+        "WLAN / Wifi Hotspot",
+        "Zentralverriegelung"
+      ],
+      "highlights": [],
+      "createdAt": 1779725412,
+      "renewedAt": 1788079961,
+      "capturedAt": "2026-08-30",
+      "imageUrl": "https://img.classistatic.de/api/v1/mo-prod/images/23/235fe867-dfdb-45a7-802a-39d579f1bf10?rule=mo-240",
+      "locationTransfer": {
+        "km": 1987,
+        "hours": 20.920583333333337,
+        "cost": null
+      },
+      "_edited": {
+        "co2Emissions": true,
+        "energyConsumption": true
+      },
+      "finalCost": {
+        "airportCode": "MUC",
+        "fields": {
+          "exportPlates": 300,
+          "tempInsurance": 0,
+          "flight": 100,
+          "fuel": 216,
+          "tolls": 141,
+          "hotel": 100,
+          "itv": 220,
+          "registration": 100,
+          "plates": 40,
+          "gestoria": 150,
+          "reducedFile": 0,
+          "fuelPricePerL": 1.6,
+          "tollPerKm": 0.07
+        },
+        "route": {
+          "coords": [
+            [
+              48.353631,
+              11.786674
+            ],
+            [
+              48.204741,
+              11.426348
+            ],
+            [
+              48.396099,
+              11.05782
+            ],
+            [
+              48.457095,
+              9.946971
+            ],
+            [
+              48.53489,
+              9.654214
+            ],
+            [
+              48.632395,
+              9.563024
+            ],
+            [
+              48.715373,
+              9.08767
+            ],
+            [
+              48.923595,
+              8.752456
+            ],
+            [
+              48.971692,
+              8.43491
+            ],
+            [
+              48.78654,
+              8.152943
+            ],
+            [
+              48.359187,
+              7.795375
+            ],
+            [
+              48.19895,
+              7.745659
+            ],
+            [
+              48.046827,
+              7.81002
+            ],
+            [
+              47.926003,
+              7.600517
+            ],
+            [
+              47.776334,
+              7.533736
+            ],
+            [
+              47.709544,
+              7.042652
+            ],
+            [
+              47.627927,
+              6.865704
+            ],
+            [
+              47.516253,
+              6.850452
+            ],
+            [
+              47.423367,
+              6.68531
+            ],
+            [
+              47.336153,
+              6.1544
+            ],
+            [
+              47.034049,
+              5.191448
+            ],
+            [
+              47.06058,
+              4.910812
+            ],
+            [
+              46.927129,
+              4.819745
+            ],
+            [
+              46.749833,
+              4.83171
+            ],
+            [
+              46.749364,
+              4.492151
+            ],
+            [
+              46.47157,
+              4.128727
+            ],
+            [
+              46.456494,
+              3.901537
+            ],
+            [
+              46.537141,
+              3.546666
+            ],
+            [
+              46.398144,
+              3.041235
+            ],
+            [
+              46.329367,
+              2.959
+            ],
+            [
+              46.170948,
+              3.130211
+            ],
+            [
+              45.9742,
+              3.100538
+            ],
+            [
+              45.81825,
+              2.775025
+            ],
+            [
+              45.674356,
+              2.687226
+            ],
+            [
+              45.456398,
+              2.074383
+            ],
+            [
+              45.317488,
+              1.879118
+            ],
+            [
+              45.308344,
+              1.57451
+            ],
+            [
+              45.15418,
+              1.382239
+            ],
+            [
+              45.147729,
+              0.56441
+            ],
+            [
+              45.004035,
+              0.365456
+            ],
+            [
+              45.009552,
+              -0.106721
+            ],
+            [
+              44.959657,
+              -0.247503
+            ],
+            [
+              44.872893,
+              -0.275128
+            ],
+            [
+              44.86911,
+              -0.505852
+            ],
+            [
+              44.78165,
+              -0.544118
+            ],
+            [
+              44.649327,
+              -0.836443
+            ],
+            [
+              44.403707,
+              -0.818725
+            ],
+            [
+              44.019613,
+              -1.016443
+            ],
+            [
+              43.695469,
+              -1.231356
+            ],
+            [
+              43.614405,
+              -1.41253
+            ],
+            [
+              43.477593,
+              -1.449072
+            ],
+            [
+              43.284165,
+              -1.911155
+            ],
+            [
+              43.285868,
+              -2.355432
+            ],
+            [
+              43.086042,
+              -2.436897
+            ],
+            [
+              42.709211,
+              -2.871319
+            ],
+            [
+              42.614948,
+              -3.198449
+            ],
+            [
+              42.315125,
+              -3.702759
+            ],
+            [
+              41.970564,
+              -3.778299
+            ],
+            [
+              41.760368,
+              -3.688969
+            ],
+            [
+              41.513261,
+              -3.716808
+            ],
+            [
+              41.21202,
+              -3.580355
+            ],
+            [
+              40.958869,
+              -3.641772
+            ],
+            [
+              40.737468,
+              -3.567651
+            ],
+            [
+              40.4176,
+              -3.70365
+            ]
+          ],
+          "km": 2015,
+          "hours": 20.8005
+        }
+      }
     }
   ],
   "prefs": {
@@ -2155,7 +2686,11 @@
         "Preparación de acoplamiento de remolque",
         "Sistema de entrada sin llave",
         "Sportpaket",
-        "Vehículo de no fumador"
+        "Vehículo de no fumador",
+        "Anhängerkupplung fest",
+        "Anhängerkupplung schwenkbar",
+        "Garantía",
+        "Garantie"
       ],
       "weight": 2
     },
@@ -2216,7 +2751,7 @@
     "adAge": true,
     "captured": true
   },
-  "view": "table",
+  "view": "finalcost",
   "costConfig": {
     "exportPlates": 300,
     "tempInsurance": 0,
@@ -2232,5 +2767,5 @@
     "fuelPricePerL": 1.6,
     "tollPerKm": 0.07
   },
-  "finalCostSelectedId": "456195363"
+  "finalCostSelectedId": "456629736"
 }
