@@ -29,6 +29,8 @@
     --bad: oklch(55% 0.18 25);
     --bad-bg: oklch(93% 0.06 25);
     --bad-text: oklch(40% 0.14 25);
+    --diff-bg: oklch(94% 0.03 255);
+    --diff-text: oklch(40% 0.1 255);
     --shadow: 0 1px 2px oklch(20% 0.02 255 / 6%), 0 4px 14px oklch(20% 0.02 255 / 7%);
   }
   @media (prefers-color-scheme: dark) {
@@ -54,6 +56,8 @@
       --bad: oklch(65% 0.18 25);
       --bad-bg: oklch(32% 0.07 25);
       --bad-text: oklch(78% 0.15 25);
+      --diff-bg: oklch(30% 0.05 255);
+      --diff-text: oklch(78% 0.12 255);
       --shadow: 0 1px 2px oklch(0% 0 0 / 30%), 0 4px 14px oklch(0% 0 0 / 25%);
     }
   }
@@ -79,6 +83,8 @@
     --bad: oklch(65% 0.18 25);
     --bad-bg: oklch(32% 0.07 25);
     --bad-text: oklch(78% 0.15 25);
+    --diff-bg: oklch(30% 0.05 255);
+    --diff-text: oklch(78% 0.12 255);
     --shadow: 0 1px 2px oklch(0% 0 0 / 30%), 0 4px 14px oklch(0% 0 0 / 25%);
   }
   :root[data-theme="light"] {
@@ -103,6 +109,8 @@
     --bad: oklch(55% 0.18 25);
     --bad-bg: oklch(93% 0.06 25);
     --bad-text: oklch(40% 0.14 25);
+    --diff-bg: oklch(94% 0.03 255);
+    --diff-text: oklch(40% 0.1 255);
     --shadow: 0 1px 2px oklch(20% 0.02 255 / 6%), 0 4px 14px oklch(20% 0.02 255 / 7%);
   }
 
@@ -464,8 +472,12 @@
   }
   .feature-chip.active { background: var(--good-bg); color: var(--good-text); border-color: transparent; }
 
-  td.fc-diff { background: var(--warn-bg); }
-  tr.fc-diff-row th.param { color: var(--warn-text); font-weight: 700; }
+  td.fc-diff { background: var(--diff-bg); }
+  td.fc-diff.cell-good { background: var(--good-bg); }
+  td.fc-diff.cell-warn { background: var(--warn-bg); }
+  td.fc-diff.cell-bad  { background: var(--bad-bg); }
+  tr.fc-diff-row th.param { color: var(--diff-text); font-weight: 700; }
+  .fc-description { max-width: 480px; white-space: normal; font-size: 12.5px; line-height: 1.5; }
   .car-card .score-block { text-align: right; }
   .car-card .specs {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; font-size: 12.5px;
@@ -1179,6 +1191,7 @@ function normalizeEntry(entry, capturedUrl) {
     sellerRatingScore: (ad.contactInfo && ad.contactInfo.rating) ? ad.contactInfo.rating.score : null,
     sellerRatingCount: (ad.contactInfo && ad.contactInfo.rating) ? ad.contactInfo.rating.totalCount : null,
     location: ad.contactInfo ? [ad.contactInfo.address1, ad.contactInfo.address2].filter(Boolean).join(' ') : null,
+    description: ad.htmlDescription || null,
     features: ad.features || [], highlights: ad.highlights || [],
     createdAt: ad.created || null, renewedAt: ad.renewed || null,
     capturedAt: new Date().toISOString().slice(0, 10)
@@ -1216,6 +1229,7 @@ function parseNextFlightAd(text, capturedUrl) {
   const ratingM2 = norm.match(/"rating":\{"count":\d+,"totalCount":(\d+),"score":([\d.]+)/);
   const createdM = norm.match(/"created":(\d+)/);
   const renewedM = norm.match(/"renewed":(\d+)/);
+  const descM = norm.match(/"htmlDescription":"((?:[^"\\]|\\.)*)"/);
 
   return {
     id: idM ? parseInt(idM[1], 10) : Date.now(),
@@ -1247,6 +1261,7 @@ function parseNextFlightAd(text, capturedUrl) {
     sellerRatingScore: ratingM2 ? parseFloat(ratingM2[2]) : null,
     sellerRatingCount: ratingM2 ? parseInt(ratingM2[1], 10) : null,
     location: addrM ? [unescapeJsonStr(addrM[1]), unescapeJsonStr(addrM[2])].filter(Boolean).join(' ') : null,
+    description: descM ? unescapeJsonStr(descM[1]) : null,
     features, highlights: [],
     createdAt: createdM ? parseInt(createdM[1], 10) : null,
     renewedAt: renewedM ? parseInt(renewedM[1], 10) : null,
@@ -1808,7 +1823,26 @@ const FEATURE_ES_MAP = {
   'Xenon-Scheinwerfer': 'Faros de xenón', 'Xenonscheinwerfer': 'Faros de xenón',
   'Anhängerkupplung': 'Enganche de remolque', 'Einparkhilfe': 'Ayuda de aparcamiento',
   'Rückfahrkamera': 'Cámara trasera', 'Panorama-Dach': 'Techo panorámico', 'Schiebedach': 'Techo solar corredizo',
-  'Standheizung': 'Calefacción estacionaria'
+  'Standheizung': 'Calefacción estacionaria',
+  'Abgedunkelte Scheiben': 'Lunas tintadas', 'Abstandstempomat': 'Control de crucero adaptativo',
+  'Adaptives Fahrwerk': 'Suspensión adaptativa', 'Adaptives Kurvenlicht': 'Luces adaptativas en curva',
+  'Alarmanlage': 'Sistema de alarma', 'Allradantrieb': 'Tracción total', 'Ambiente-Beleuchtung': 'Iluminación ambiental',
+  'Anhängerkupplung fest': 'Enganche de remolque fijo', 'Anhängerkupplung schwenkbar': 'Enganche de remolque abatible',
+  'Anhängerrangierassistent': 'Asistente de maniobra con remolque',
+  'Ausparkassistent': 'Asistente de salida de aparcamiento', 'Beheizbare Frontscheibe': 'Parabrisas calefactable',
+  'Blendfreies Fernlicht': 'Luces de carretera antideslumbrantes',
+  'Elektr. Seitenspiegel anklappbar': 'Retrovisores eléctricos abatibles',
+  'Elektr. Sitzeinstellung': 'Ajuste eléctrico de asientos',
+  'Elektr. Sitzeinstellung mit Memory-Funktion': 'Ajuste eléctrico de asientos con memoria',
+  'Fernlichtassistent': 'Asistente de luces de carretera', 'Frontantrieb': 'Tracción delantera',
+  'Head-Up Display': 'Pantalla Head-up', 'Induktionsladen für Smartphones': 'Carga por inducción para smartphones',
+  'Inspektion neu': 'Revisión recién hecha', 'Isofix Beifahrersitz': 'Isofix en asiento del copiloto',
+  'Laserlicht': 'Faros láser', 'Lordosenstütze': 'Soporte lumbar', 'Navigationsvorbereitung': 'Preinstalación de navegación',
+  'Nebelscheinwerfer': 'Faros antiniebla', 'Raucherpaket': 'Paquete para fumadores', 'Skisack': 'Portaesquís interior',
+  'Sportfahrwerk': 'Suspensión deportiva', 'Sportpaket': 'Paquete deportivo', 'Sportsitze': 'Asientos deportivos',
+  'Soundsystem': 'Sistema de sonido', 'Tagfahrlicht': 'Luces diurnas', 'Totwinkel-Assistent': 'Asistente de ángulos muertos',
+  'Umklappbarer Beifahrersitz': 'Asiento del copiloto abatible', 'WLAN / Wifi Hotspot': 'WiFi / punto de acceso WiFi',
+  'Winterpaket': 'Paquete de invierno', 'Winterreifen': 'Neumáticos de invierno'
 };
 const FEATURE_ES_MAP_LOWER = Object.fromEntries(Object.entries(FEATURE_ES_MAP).map(([k, v]) => [k.toLowerCase(), v]));
 function translateFeature(f) {
@@ -2811,57 +2845,19 @@ function renderRadar() {
 /* ---------- Comparativa completa (hasta 3 anuncios, todos los campos) ---------- */
 let fullCompareSelected = new Set();
 
-// Todo el dato "de ficha" del anuncio, no solo lo que ROW_DEFS muestra en la tabla
-// principal (esa es personalizable y algunos campos están ocultos a propósito). Esta vista
-// es la contraria: exhaustiva siempre, sin toggle de columnas.
-// partKey enlaza cada fila con la clave de ev.parts (evaluateAd) para poder pintarla con
-// los mismos colores verde/ámbar/rojo de puntos fuertes/débiles que ya usa la tabla
-// principal — solo en los campos que de verdad son un criterio de Preferencias; el resto
-// se queda sin colorear (no todo dato de ficha se valora).
-const FULL_COMPARE_FIELDS = [
-  { key: 'title', label: 'Título' },
-  { key: 'make', label: 'Marca' },
-  { key: 'model', label: 'Modelo', partKey: 'modelRank' },
-  { key: 'category', label: 'Categoría' },
-  { key: 'sportPackage', label: 'Paquete deportivo', partKey: 'sportPackage' },
-  { key: 'priceGross', label: 'Precio', fmt: v => fmtEUR.format(v) },
-  { key: 'totalPrice', label: 'Precio total (con impuesto)', get: ad => totalPriceWithTax(ad), fmt: v => fmtEUR.format(v), partKey: 'priceGross' },
-  { key: 'priceRatingLabel', label: 'Valoración de precio', get: ad => ad.priceRating ? ad.priceRating.label : null, partKey: 'priceRating' },
-  { key: 'firstRegistration', label: 'Matriculación', partKey: 'regYear' },
-  { key: 'mileageKm', label: 'Kilómetros', fmt: v => fmtInt.format(v) + ' km', partKey: 'mileageKm' },
-  { key: 'powerPs', label: 'Potencia', fmt: v => v + ' CV', partKey: 'powerPs' },
-  { key: 'cubicCapacity', label: 'Cilindrada', fmt: v => v + ' cm³' },
-  { key: 'cylinder', label: 'Cilindros' },
-  { key: 'engineType', label: 'Tipo de motor' },
-  { key: 'fuel', label: 'Combustible', partKey: 'fuel' },
-  { key: 'transmission', label: 'Transmisión', partKey: 'transmission' },
-  { key: 'co2Emissions', label: 'Emisiones CO₂' },
-  { key: 'energyConsumption', label: 'Consumo', partKey: 'consumption' },
-  { key: 'emissionClass', label: 'Clase de emisiones' },
-  { key: 'emissionsSticker', label: 'Etiqueta ambiental' },
-  { key: 'owners', label: 'Propietarios', partKey: 'owners' },
-  { key: 'damageCondition', label: 'Accidentes', partKey: 'accidentFree' },
-  { key: 'vehicleCondition', label: 'Condición del vehículo' },
-  { key: 'hu', label: 'HU (ITV)' },
-  { key: 'climatisation', label: 'Climatización' },
-  { key: 'color', label: 'Color', get: ad => (colorInfo(ad.color) ? colorInfo(ad.color).es : ad.color), partKey: 'colorPrefs' },
-  { key: 'interior', label: 'Interior' },
-  { key: 'seats', label: 'Plazas' },
-  { key: 'sellerTypeLabel', label: 'Tipo de vendedor', get: ad => ad.sellerType === 'DEALER' ? 'Profesional' : ad.sellerType === 'FOR_SALE_BY_OWNER' ? 'Particular' : ad.sellerType, partKey: 'sellerType' },
-  { key: 'sellerName', label: 'Vendedor' },
-  { key: 'sellerRating', label: 'Valoración del vendedor', get: ad => ad.sellerRatingScore != null ? String(ad.sellerRatingScore).replace('.', ',') + ' ★' + (ad.sellerRatingCount ? ' (' + ad.sellerRatingCount + ')' : '') : null, partKey: 'sellerRating' },
-  { key: 'location', label: 'Ubicación' },
-  { key: 'transferHours', label: 'Trayecto en coche hasta Madrid', get: ad => (ad.locationTransfer && ad.locationTransfer.hours != null) ? fmtHours(ad.locationTransfer.hours) : null, partKey: 'transferHours' },
-  { key: 'transferCost', label: 'Coste del trayecto hasta Madrid', get: ad => (ad.locationTransfer && ad.locationTransfer.cost != null) ? fmtEUR.format(ad.locationTransfer.cost) : null, partKey: 'transferCost' },
-  { key: 'featuresCount', label: 'Nº de extras' },
-  { key: 'capturedAt', label: 'Última captura' },
-  { key: 'url', label: 'Enlace', get: ad => ad.url, isLink: true }
-];
 
-function fullCompareValue(field, ad) {
-  const raw = field.get ? field.get(ad) : ad[field.key];
-  if (raw === null || raw === undefined || raw === '') return null;
-  return field.fmt ? field.fmt(raw) : String(raw);
+// Descripción del vendedor: mobile.de la manda como HTML simple (párrafos, <br>). Para
+// mostrarla en la tabla sin renderizar HTML arbitrario, se convierte a texto plano
+// (saltos de línea en vez de <p>/<br>) y se vuelve a escapar con esc() al mostrarla.
+function descriptionToPlainText(html) {
+  if (!html) return null;
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function fullCompareToggle(id, checked) {
@@ -2889,59 +2885,107 @@ function fullCompareFeatureUnion(ads) {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
+// "Comparativa completa" = la misma tabla de siempre (renderTable), no una tabla aparte:
+// mismo encabezado con foto/ranking/puntuación/botones, mismos colores de puntos
+// fuertes/débiles por criterio (cell-good/warn/bad + punto de color), mismos campos
+// editables. Lo único distinto: como mucho 3 anuncios, TODAS las filas de ROW_DEFS sin
+// respetar el checklist de columnas de Preferencias (aquí se quiere ver todo), más lo que
+// de verdad no tiene fila en la tabla normal (plazas, equipamiento uno a uno, descripción
+// completa del vendedor al final), y cada fila marca si hay diferencia entre los
+// seleccionados (fc-diff), independientemente de si también tiene color de criterio.
 function renderFullCompare() {
   fullCompareRenderChecks();
   const body = document.getElementById('fullCompareBody');
-  const ads = regularAds().filter(ad => fullCompareSelected.has(String(ad.id)));
-  if (ads.length < 2) {
-    body.innerHTML = '<div class="panel"><p class="hint">Selecciona arriba entre 2 y 3 anuncios guardados para comparar todos sus datos.</p></div>';
+  const selectedAds = regularAds().filter(ad => fullCompareSelected.has(String(ad.id)));
+  if (selectedAds.length < 2) {
+    body.innerHTML = '<div class="panel"><p class="hint">Selecciona arriba entre 2 y 3 anuncios guardados para comparar.</p></div>';
     return;
   }
   const diffOnly = document.getElementById('fullCompareDiffOnly').checked;
-  const evals = ads.map(ad => ({ ad, ev: evaluateAd(ad, state.prefs) }));
 
-  const header = '<tr><th class="param">Parámetro</th>' +
-    ads.map(ad => '<th class="car-head">' +
+  const rows = selectedAds.map(ad => ({ ad, ev: evaluateAd(ad, state.prefs) }))
+    .sort((a, b) => (b.ev.score ?? -1) - (a.ev.score ?? -1));
+  const partOf = (ev, key) => ev.parts.find(p => p.key === key);
+  const stripHtml = s => String(s).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+  let h = '<table class="cmp"><tr><th class="param">Coche</th>';
+  rows.forEach((r, i) => {
+    const { ad, ev } = r;
+    const barColor = ev.score >= 70 ? 'var(--good)' : ev.score >= 45 ? 'var(--warn)' : 'var(--bad)';
+    h += '<td class="car-head">' +
       (ad.imageUrl ? '<img class="car-photo" src="' + esc(ad.imageUrl) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '') +
-      '<div class="car-title">' + esc(ad.title) +
-      (ad.url ? '<div><a class="adlink" href="' + esc(ad.url) + '" target="_blank" rel="noopener">Ver anuncio ↗</a></div>' : '') + '</div></th>').join('') +
-    '</tr>';
+      (rows.length > 1 ? '<span class="rank-badge' + (i > 0 ? ' plain' : '') + '">' + (i + 1) + 'º</span>' : '') +
+      '<div class="car-title">' + esc(ad.title) + '</div>' +
+      '<div class="car-meta">' + esc(ad.category || '') + (ad.modelRange ? ' · ' + esc(ad.modelRange) : '') +
+      (ad.withdrawn ? ' · <strong style="color:var(--bad)">RETIRADO</strong>' : '') + '</div>' +
+      '<div class="score-wrap"><span class="score-num">' + (ev.score ?? '—') + '<small> /100</small></span>' +
+      '<div class="score-bar"><i style="width:' + (ev.score || 0) + '%;background:' + barColor + '"></i></div></div>' +
+      '<div class="head-actions">' + (ad.url ? '<a class="adlink" href="' + esc(ad.url) + '" target="_blank" rel="noopener">Ver anuncio ↗</a>' : '') + '</div>' +
+      '</td>';
+  });
+  h += '</tr>';
 
-  let rowsHtml = '';
-  FULL_COMPARE_FIELDS.forEach(field => {
-    if (field.isLink) return; // ya sale como enlace en la cabecera
-    const values = ads.map(ad => fullCompareValue(field, ad));
-    const isDiff = new Set(values.map(v => v === null ? ' ' : v)).size > 1;
-    if (diffOnly && !isDiff) return;
-    const statusCls = field.partKey ? evals.map(({ ev }) => {
-      const p = ev.parts.find(x => x.key === field.partKey);
-      return p ? p.status.cls : null;
-    }) : null;
-    rowsHtml += '<tr' + (isDiff ? ' class="fc-diff-row"' : '') + '><th class="param">' + esc(field.label) + '</th>' +
-      values.map((v, i) => {
-        const cls = [isDiff ? 'fc-diff' : null, statusCls && statusCls[i] ? 'cell-' + statusCls[i] : null].filter(Boolean).join(' ');
-        return '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + (v !== null ? esc(v) : '<span class="hint">—</span>') + '</td>';
-      }).join('') +
-      '</tr>';
+  // Una fila con el mismo cálculo de clase/estilo por celda que usa renderTable(), más el
+  // marcado de diferencia (comparando el texto ya renderizado, sin las etiquetas HTML).
+  const rowHtml = (label, cellsHtml, metaPerCell) => {
+    const isDiff = new Set(cellsHtml.map(v => stripHtml(v))).size > 1;
+    if (diffOnly && !isDiff) return '';
+    return '<tr' + (isDiff ? ' class="fc-diff-row"' : '') + '><th class="param">' + esc(label) + '</th>' +
+      cellsHtml.map((v, i) => {
+        const meta = metaPerCell ? metaPerCell(i) : {};
+        const cls = [meta.cls, isDiff ? 'fc-diff' : ''].filter(Boolean).join(' ');
+        return '<td' + (cls ? ' class="' + cls + '"' : '') + (meta.style ? ' style="' + meta.style + '"' : '') + '>' + v + '</td>';
+      }).join('') + '</tr>';
+  };
+
+  let bodyRows = '';
+  ROW_DEFS.forEach(def => {
+    const cellsHtml = rows.map(r => {
+      const p = def.key ? partOf(r.ev, def.key) : null;
+      const custom = def.styleFn ? def.styleFn(r.ad, r.ev) : null;
+      const dotHtml = (p && !custom) ? '<span class="dot ' + p.status.cls + '"></span>' : '';
+      return dotHtml + def.fn(r.ad, r.ev);
+    });
+    const metaPerCell = i => {
+      const p = def.key ? partOf(rows[i].ev, def.key) : null;
+      const custom = def.styleFn ? def.styleFn(rows[i].ad, rows[i].ev) : null;
+      return { cls: [(p && !custom) ? 'cell-' + p.status.cls : '', def.numeric ? 'num' : ''].filter(Boolean).join(' '), style: custom || '' };
+    };
+    bodyRows += rowHtml(def.label, cellsHtml, metaPerCell);
   });
 
-  const allFeatures = fullCompareFeatureUnion(ads);
-  let featureRowsHtml = '';
-  allFeatures.forEach(f => {
-    const values = ads.map(ad => (ad.features || []).some(x => x.toLowerCase() === f.toLowerCase()));
-    const isDiff = new Set(values).size > 1;
-    if (diffOnly && !isDiff) return;
-    featureRowsHtml += '<tr' + (isDiff ? ' class="fc-diff-row"' : '') + '><th class="param">' + esc(translateFeature(f)) + '</th>' +
-      values.map(v => '<td' + (isDiff ? ' class="fc-diff"' : '') + ' style="text-align:center">' + (v ? '✓' : '<span class="hint">—</span>') + '</td>').join('') +
-      '</tr>';
-  });
-  const featureSectionHtml = allFeatures.length
-    ? '<tr class="cat-row"><td colspan="' + (ads.length + 1) + '">Equipamiento (' + allFeatures.length + ' distintos entre los seleccionados)</td></tr>' + featureRowsHtml
-    : '';
+  // Lo que de verdad no tiene fila en la tabla normal: plazas y cada elemento de
+  // equipamiento por separado.
+  bodyRows += rowHtml('Plazas', rows.map(r => r.ad.seats != null ? String(r.ad.seats) : '<span class="hint">—</span>'));
 
-  body.innerHTML = '<div class="table-wrap"><table class="cmp"><thead>' + header + '</thead><tbody>' +
-    rowsHtml + featureSectionHtml +
-    '</tbody></table></div>';
+  const allFeatures = fullCompareFeatureUnion(rows.map(r => r.ad));
+  if (allFeatures.length) {
+    const anyFeatureRow = allFeatures.some(f => {
+      const values = rows.map(r => (r.ad.features || []).some(x => x.toLowerCase() === f.toLowerCase()));
+      return !diffOnly || new Set(values).size > 1;
+    });
+    if (anyFeatureRow) bodyRows += '<tr class="cat-row"><td colspan="' + (rows.length + 1) + '">Equipamiento (' + allFeatures.length + ' distintos entre los seleccionados)</td></tr>';
+    allFeatures.forEach(f => {
+      const has = rows.map(r => (r.ad.features || []).some(x => x.toLowerCase() === f.toLowerCase()));
+      const isDiffFeature = new Set(has).size > 1;
+      const cellsHtml = has.map(h => h ? '✓' : '<span class="hint">—</span>');
+      // Solo se colorea cuando de verdad hay diferencia: verde el/los que lo tienen, rojo
+      // el/los que no. Si todos coinciden (todos lo tienen o ninguno), se deja neutro.
+      const metaPerCell = i => ({ cls: isDiffFeature ? (has[i] ? 'cell-good' : 'cell-bad') : '' });
+      bodyRows += rowHtml(translateFeature(f), cellsHtml, metaPerCell);
+    });
+  }
+
+  // Descripción completa del vendedor, al final de todo, sin resaltado de diferencia (es
+  // texto libre, casi siempre distinto palabra por palabra entre anuncios).
+  const descCells = rows.map(r => {
+    const txt = descriptionToPlainText(r.ad.description);
+    return txt ? '<div class="fc-description">' + esc(txt).replace(/\n/g, '<br>') + '</div>' : '<span class="hint">—</span>';
+  });
+  bodyRows += '<tr class="cat-row"><td colspan="' + (rows.length + 1) + '">Descripción del vendedor</td></tr>';
+  bodyRows += '<tr><th class="param">Descripción completa</th>' + descCells.map(v => '<td>' + v + '</td>').join('') + '</tr>';
+
+  body.innerHTML = '<div class="table-wrap">' + h + bodyRows + '</table></div>';
 }
 
 function renderCriteriaChips() {
