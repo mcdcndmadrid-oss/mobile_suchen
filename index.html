@@ -329,6 +329,12 @@
     border-right: 1px solid var(--line); min-width: 150px; max-width: 190px;
   }
   table.cmp td.car-head { border-right: 1px solid var(--line); min-width: 230px; max-width: 300px; background: var(--surface); }
+  .fc-select-cb {
+    display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600;
+    color: var(--ink-soft); margin-bottom: 8px; cursor: pointer; user-select: none;
+  }
+  .fc-select-cb input:disabled { cursor: not-allowed; }
+  .fc-select-cb input:disabled + * { opacity: .5; }
   .car-photo {
     display: block; width: 100%; height: 130px; object-fit: cover;
     border-radius: 7px; margin-bottom: 10px; background: var(--surface-2);
@@ -786,8 +792,7 @@
       <div class="panel-header">
         <p class="eyebrow">Comparativa completa (hasta 3 anuncios)</p>
       </div>
-      <p class="hint">Selecciona hasta 3 anuncios guardados para ver absolutamente todos sus datos lado a lado, incluido cada elemento de equipamiento uno a uno.</p>
-      <div class="om-cat-models" id="fullCompareCheckGroups"></div>
+      <p class="hint">Marca la casilla de la cabecera de hasta 3 coches en la pestaña "Tabla" para elegir cuáles comparar aquí, con todos sus datos lado a lado, incluido cada elemento de equipamiento uno a uno.</p>
       <div class="row-actions">
         <label><input type="checkbox" id="fullCompareDiffOnly" onchange="renderFullCompare()"> Mostrar solo las diferencias</label>
       </div>
@@ -1206,6 +1211,60 @@ function unescapeJsonStr(s) {
   try { return JSON.parse('"' + s + '"'); } catch (e) { return s; }
 }
 
+// Decodifica escapes tipo JSON (\uXXXX, \n, \", \\...) carácter a carácter, deteniéndose
+// en cuanto la salida ya decodificada alcanza targetBytes bytes UTF-8 (o al acabar el
+// propio trozo si targetBytes es null). Se usa para los chunks "T<hex>," de React Flight,
+// donde <hex> cuenta bytes del contenido YA decodificado, no caracteres del texto todavía
+// escapado (que ocupa más, p.ej. "<" son 6 caracteres para 1 solo byte real).
+function decodeEscapedSlice(raw, targetBytes) {
+  const enc = new TextEncoder();
+  let out = '', bytes = 0, i = 0;
+  while (i < raw.length && (targetBytes == null || bytes < targetBytes)) {
+    let ch;
+    if (raw[i] === '\\' && i + 1 < raw.length) {
+      const c = raw[i + 1];
+      if (c === 'u') { ch = String.fromCharCode(parseInt(raw.substr(i + 2, 4), 16)); i += 6; }
+      else if (c === 'n') { ch = '\n'; i += 2; }
+      else if (c === 't') { ch = '\t'; i += 2; }
+      else if (c === 'r') { ch = '\r'; i += 2; }
+      else { ch = c; i += 2; }
+    } else { ch = raw[i]; i += 1; }
+    out += ch;
+    bytes += enc.encode(ch).length;
+  }
+  return out;
+}
+
+// Cuando un campo es muy largo (típicamente la descripción del vendedor), Next.js (React
+// Server Components) no lo deja inline: dentro del JSON solo queda una referencia tipo
+// "$43" y el contenido real va aparte, en un "chunk" con forma "\n43:Tacd,<contenido>" (T +
+// longitud en hexadecimal de bytes). Esto resuelve esa referencia devolviendo el contenido
+// ya decodificado. El marcador "\nNN:" aparece en el texto capturado como los caracteres
+// literales backslash + "n" (no como un salto de línea real), así que hay que escapar la
+// barra invertida también dentro del propio patrón de la regex (\\\\n), no solo al
+// construir el string.
+function resolveFlightChunk(text, ref) {
+  const defRe = new RegExp('\\\\n' + ref + ':(?:T([0-9a-fA-F]+),)?');
+  const m = defRe.exec(text);
+  if (!m) return null;
+  const start = m.index + m[0].length;
+  if (m[1]) {
+    const targetBytes = parseInt(m[1], 16);
+    // Margen generoso: en el peor caso cada byte decodificado ocupa "\u00XX" (6 caracteres)
+    // en el texto todavía escapado.
+    return decodeEscapedSlice(text.slice(start, start + targetBytes * 7 + 32), targetBytes);
+  }
+  if (text[start] === '"') {
+    const strM = /^"((?:[^"\\]|\\.)*)"/.exec(text.slice(start));
+    if (strM) return unescapeJsonStr(strM[1]);
+  }
+  const restRe = /\\n\d+:/g;
+  restRe.lastIndex = start;
+  const next = restRe.exec(text);
+  const end = next ? next.index : text.length;
+  return unescapeJsonStr(text.slice(start, end));
+}
+
 function parseNextFlightAd(text, capturedUrl) {
   const norm = text.replace(/\\+"/g, '"');
   const attrRe = /\{"label":"((?:[^"\\]|\\.)*)","tag":"((?:[^"\\]|\\.)*)","value":"((?:[^"\\]|\\.)*)"\}/g;
@@ -1230,6 +1289,12 @@ function parseNextFlightAd(text, capturedUrl) {
   const createdM = norm.match(/"created":(\d+)/);
   const renewedM = norm.match(/"renewed":(\d+)/);
   const descM = norm.match(/"htmlDescription":"((?:[^"\\]|\\.)*)"/);
+  const descRawInline = descM ? descM[1] : null;
+  const descRefM = descRawInline && descRawInline.match(/^\$(\d+)$/);
+  // Si es una referencia ("$43"), el contenido real va en un chunk aparte y ya vuelve
+  // decodificado; si viene inline, hay que decodificar los escapes nosotros mismos.
+  const description = descRefM ? resolveFlightChunk(text, descRefM[1])
+    : (descRawInline ? unescapeJsonStr(descRawInline) : null);
 
   return {
     id: idM ? parseInt(idM[1], 10) : Date.now(),
@@ -1261,7 +1326,7 @@ function parseNextFlightAd(text, capturedUrl) {
     sellerRatingScore: ratingM2 ? parseFloat(ratingM2[2]) : null,
     sellerRatingCount: ratingM2 ? parseInt(ratingM2[1], 10) : null,
     location: addrM ? [unescapeJsonStr(addrM[1]), unescapeJsonStr(addrM[2])].filter(Boolean).join(' ') : null,
-    description: descM ? unescapeJsonStr(descM[1]) : null,
+    description,
     features, highlights: [],
     createdAt: createdM ? parseInt(createdM[1], 10) : null,
     renewedAt: renewedM ? parseInt(renewedM[1], 10) : null,
@@ -2860,20 +2925,13 @@ function descriptionToPlainText(html) {
     .trim();
 }
 
+// La selección de coches para "Comparativa completa" se marca desde la propia cabecera de
+// la pestaña "Tabla" (checkbox en cada columna), no desde una lista aparte; por eso el
+// cambio se propaga con render() genérico, que refresca la vista que esté activa en ese
+// momento (la tabla, para actualizar qué casillas quedan deshabilitadas al llegar a 3).
 function fullCompareToggle(id, checked) {
   if (checked) fullCompareSelected.add(id); else fullCompareSelected.delete(id);
-  renderFullCompare();
-}
-function fullCompareRenderChecks() {
-  document.getElementById('fullCompareCheckGroups').innerHTML = regularAds().map(ad => {
-    const sel = fullCompareSelected.has(String(ad.id));
-    const disabled = !sel && fullCompareSelected.size >= 3;
-    return '<label class="om-check">' +
-      '<input type="checkbox" ' + (sel ? 'checked' : '') + (disabled ? ' disabled' : '') +
-      ' onchange="fullCompareToggle(\'' + ad.id + '\', this.checked)">' +
-      '<span>' + esc(ad.title) + '</span>' +
-      '</label>';
-  }).join('');
+  render();
 }
 
 // Unión de todo el equipamiento (ad.features) de los anuncios seleccionados, comparación
@@ -2894,11 +2952,10 @@ function fullCompareFeatureUnion(ads) {
 // completa del vendedor al final), y cada fila marca si hay diferencia entre los
 // seleccionados (fc-diff), independientemente de si también tiene color de criterio.
 function renderFullCompare() {
-  fullCompareRenderChecks();
   const body = document.getElementById('fullCompareBody');
   const selectedAds = regularAds().filter(ad => fullCompareSelected.has(String(ad.id)));
   if (selectedAds.length < 2) {
-    body.innerHTML = '<div class="panel"><p class="hint">Selecciona arriba entre 2 y 3 anuncios guardados para comparar.</p></div>';
+    body.innerHTML = '<div class="panel"><p class="hint">Ve a la pestaña "Tabla" y marca la casilla de la cabecera de entre 2 y 3 anuncios guardados para comparar.</p></div>';
     return;
   }
   const diffOnly = document.getElementById('fullCompareDiffOnly').checked;
@@ -3507,7 +3564,12 @@ function renderTable() {
   rows.forEach((r, i) => {
     const { ad, ev } = r;
     const barColor = ev.score >= 70 ? 'var(--good)' : ev.score >= 45 ? 'var(--warn)' : 'var(--bad)';
+    const fcSel = fullCompareSelected.has(String(ad.id));
+    const fcDisabled = !fcSel && fullCompareSelected.size >= 3;
     h += '<td class="car-head">' +
+      '<label class="fc-select-cb" title="Incluir en Comparativa completa (máx. 3)">' +
+      '<input type="checkbox" ' + (fcSel ? 'checked' : '') + (fcDisabled ? ' disabled' : '') +
+      ' onchange="fullCompareToggle(\'' + ad.id + '\', this.checked)"> Comparar</label>' +
       (ad.imageUrl ? '<img class="car-photo" src="' + esc(ad.imageUrl) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '') +
       (rows.length > 1 ? '<span class="rank-badge' + (i > 0 ? ' plain' : '') + '">' + (i + 1) + 'º</span>' : '') +
       '<div class="car-title">' + esc(ad.title) + '</div>' +
