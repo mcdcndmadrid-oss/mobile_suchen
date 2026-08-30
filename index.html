@@ -1774,6 +1774,47 @@ function distinctAdColors() {
   });
   return [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 }
+// Traducción de equipamiento alemán → español, solo para MOSTRAR (el emparejamiento con
+// el equipamiento deseado y el guardado en el anuncio siguen usando el texto original de
+// mobile.de, para no romper el matching si un anuncio alemán y otro español describen lo
+// mismo con palabras distintas). Cobertura de los términos más habituales de mobile.de; lo
+// que no esté en el mapa se muestra tal cual (ya en español si el anuncio venía de /es/).
+const FEATURE_ES_MAP = {
+  'Abstandswarner': 'Aviso de distancia', 'Armlehne': 'Reposabrazos',
+  'Berganfahrassistent': 'Asistente de arranque en pendiente', 'Bordcomputer': 'Ordenador de a bordo',
+  'CD-Spieler': 'Reproductor de CD', 'Dachreling': 'Barras de techo',
+  'Elektr. Fensterheber': 'Elevalunas eléctrico', 'Elektr. Heckklappe': 'Portón eléctrico',
+  'Elektr. Seitenspiegel': 'Retrovisores eléctricos', 'Elektr. Wegfahrsperre': 'Inmovilizador electrónico',
+  'Freisprecheinrichtung': 'Manos libres', 'Garantie': 'Garantía',
+  'Gepäckraumabtrennung': 'Separador de maletero', 'Geschwindigkeitsbegrenzer': 'Limitador de velocidad',
+  'Heckantrieb': 'Tracción trasera', 'Innenspiegel autom. abblendend': 'Retrovisor interior antideslumbrante automático',
+  'Lederlenkrad': 'Volante de piel', 'LED-Scheinwerfer': 'Faros LED', 'LED-Tagfahrlicht': 'Luces diurnas LED',
+  'Leichtmetallfelgen': 'Llantas de aleación', 'Lichtsensor': 'Sensor de luz',
+  'Müdigkeitswarner': 'Aviso de cansancio', 'Multifunktionslenkrad': 'Volante multifunción',
+  'Musikstreaming integriert': 'Streaming de música integrado', 'Navigationssystem': 'Sistema de navegación',
+  'Nichtraucher-Fahrzeug': 'Vehículo de no fumador', 'Notbremsassistent': 'Asistente de frenada de emergencia',
+  'Notrufsystem': 'Sistema de llamada de emergencia', 'Pannenkit': 'Kit antipinchazos',
+  'Partikelfilter': 'Filtro de partículas', 'Radio DAB': 'Radio DAB', 'Regensensor': 'Sensor de lluvia',
+  'Reifendruckkontrolle': 'Control de presión de neumáticos', 'Schaltwippen': 'Levas de cambio',
+  'Scheckheftgepflegt': 'Mantenimiento con libro de revisiones',
+  'Schlüssellose Zentralverriegelung (Keyless)': 'Cierre centralizado sin llave (Keyless)',
+  'Servolenkung': 'Dirección asistida', 'Sitzheizung': 'Asientos calefactables', 'Sommerreifen': 'Neumáticos de verano',
+  'Sprachsteuerung': 'Control por voz', 'Spurhalteassistent': 'Asistente de mantenimiento de carril',
+  'Start/Stopp-Automatik': 'Sistema Start/Stop', 'Tempomat': 'Control de crucero',
+  'Traktionskontrolle': 'Control de tracción', 'Tuner/Radio': 'Sintonizador/radio',
+  'Verkehrszeichenerkennung': 'Reconocimiento de señales de tráfico',
+  'Volldigitales Kombiinstrument': 'Cuadro de instrumentos digital', 'Zentralverriegelung': 'Cierre centralizado',
+  'Klimaanlage': 'Aire acondicionado', 'Klimaautomatik': 'Climatizador automático',
+  'Xenon-Scheinwerfer': 'Faros de xenón', 'Xenonscheinwerfer': 'Faros de xenón',
+  'Anhängerkupplung': 'Enganche de remolque', 'Einparkhilfe': 'Ayuda de aparcamiento',
+  'Rückfahrkamera': 'Cámara trasera', 'Panorama-Dach': 'Techo panorámico', 'Schiebedach': 'Techo solar corredizo',
+  'Standheizung': 'Calefacción estacionaria'
+};
+const FEATURE_ES_MAP_LOWER = Object.fromEntries(Object.entries(FEATURE_ES_MAP).map(([k, v]) => [k.toLowerCase(), v]));
+function translateFeature(f) {
+  return FEATURE_ES_MAP[f] || FEATURE_ES_MAP_LOWER[f.toLowerCase()] || f;
+}
+
 // Todo el equipamiento distinto (ad.features) presente en los anuncios guardados, para
 // poder explorarlo en Preferencias y añadirlo al equipamiento deseado con un clic.
 function distinctFeatures() {
@@ -1786,8 +1827,8 @@ function toggleWishlistFeature(btn) {
   const input = document.getElementById('wishlistInput');
   const items = input.value.split(',').map(s => s.trim()).filter(Boolean);
   const idx = items.findIndex(i => i.toLowerCase() === feature.toLowerCase());
-  if (idx === -1) { items.push(feature); btn.classList.add('active'); btn.textContent = '✓ ' + feature; }
-  else { items.splice(idx, 1); btn.classList.remove('active'); btn.textContent = '+ ' + feature; }
+  if (idx === -1) { items.push(feature); btn.classList.add('active'); btn.textContent = '✓ ' + translateFeature(feature); }
+  else { items.splice(idx, 1); btn.classList.remove('active'); btn.textContent = '+ ' + translateFeature(feature); }
   input.value = items.join(', ');
 }
 
@@ -2773,42 +2814,46 @@ let fullCompareSelected = new Set();
 // Todo el dato "de ficha" del anuncio, no solo lo que ROW_DEFS muestra en la tabla
 // principal (esa es personalizable y algunos campos están ocultos a propósito). Esta vista
 // es la contraria: exhaustiva siempre, sin toggle de columnas.
+// partKey enlaza cada fila con la clave de ev.parts (evaluateAd) para poder pintarla con
+// los mismos colores verde/ámbar/rojo de puntos fuertes/débiles que ya usa la tabla
+// principal — solo en los campos que de verdad son un criterio de Preferencias; el resto
+// se queda sin colorear (no todo dato de ficha se valora).
 const FULL_COMPARE_FIELDS = [
   { key: 'title', label: 'Título' },
   { key: 'make', label: 'Marca' },
-  { key: 'model', label: 'Modelo' },
+  { key: 'model', label: 'Modelo', partKey: 'modelRank' },
   { key: 'category', label: 'Categoría' },
-  { key: 'sportPackage', label: 'Paquete deportivo' },
+  { key: 'sportPackage', label: 'Paquete deportivo', partKey: 'sportPackage' },
   { key: 'priceGross', label: 'Precio', fmt: v => fmtEUR.format(v) },
-  { key: 'totalPrice', label: 'Precio total (con impuesto)', get: ad => totalPriceWithTax(ad), fmt: v => fmtEUR.format(v) },
-  { key: 'priceRatingLabel', label: 'Valoración de precio', get: ad => ad.priceRating ? ad.priceRating.label : null },
-  { key: 'firstRegistration', label: 'Matriculación' },
-  { key: 'mileageKm', label: 'Kilómetros', fmt: v => fmtInt.format(v) + ' km' },
-  { key: 'powerPs', label: 'Potencia', fmt: v => v + ' CV' },
+  { key: 'totalPrice', label: 'Precio total (con impuesto)', get: ad => totalPriceWithTax(ad), fmt: v => fmtEUR.format(v), partKey: 'priceGross' },
+  { key: 'priceRatingLabel', label: 'Valoración de precio', get: ad => ad.priceRating ? ad.priceRating.label : null, partKey: 'priceRating' },
+  { key: 'firstRegistration', label: 'Matriculación', partKey: 'regYear' },
+  { key: 'mileageKm', label: 'Kilómetros', fmt: v => fmtInt.format(v) + ' km', partKey: 'mileageKm' },
+  { key: 'powerPs', label: 'Potencia', fmt: v => v + ' CV', partKey: 'powerPs' },
   { key: 'cubicCapacity', label: 'Cilindrada', fmt: v => v + ' cm³' },
   { key: 'cylinder', label: 'Cilindros' },
   { key: 'engineType', label: 'Tipo de motor' },
-  { key: 'fuel', label: 'Combustible' },
-  { key: 'transmission', label: 'Transmisión' },
+  { key: 'fuel', label: 'Combustible', partKey: 'fuel' },
+  { key: 'transmission', label: 'Transmisión', partKey: 'transmission' },
   { key: 'co2Emissions', label: 'Emisiones CO₂' },
-  { key: 'energyConsumption', label: 'Consumo' },
+  { key: 'energyConsumption', label: 'Consumo', partKey: 'consumption' },
   { key: 'emissionClass', label: 'Clase de emisiones' },
   { key: 'emissionsSticker', label: 'Etiqueta ambiental' },
-  { key: 'owners', label: 'Propietarios' },
-  { key: 'damageCondition', label: 'Accidentes' },
+  { key: 'owners', label: 'Propietarios', partKey: 'owners' },
+  { key: 'damageCondition', label: 'Accidentes', partKey: 'accidentFree' },
   { key: 'vehicleCondition', label: 'Condición del vehículo' },
   { key: 'hu', label: 'HU (ITV)' },
   { key: 'climatisation', label: 'Climatización' },
-  { key: 'color', label: 'Color', get: ad => (colorInfo(ad.color) ? colorInfo(ad.color).es : ad.color) },
+  { key: 'color', label: 'Color', get: ad => (colorInfo(ad.color) ? colorInfo(ad.color).es : ad.color), partKey: 'colorPrefs' },
   { key: 'interior', label: 'Interior' },
   { key: 'seats', label: 'Plazas' },
-  { key: 'sellerTypeLabel', label: 'Tipo de vendedor', get: ad => ad.sellerType === 'DEALER' ? 'Profesional' : ad.sellerType === 'FOR_SALE_BY_OWNER' ? 'Particular' : ad.sellerType },
+  { key: 'sellerTypeLabel', label: 'Tipo de vendedor', get: ad => ad.sellerType === 'DEALER' ? 'Profesional' : ad.sellerType === 'FOR_SALE_BY_OWNER' ? 'Particular' : ad.sellerType, partKey: 'sellerType' },
   { key: 'sellerName', label: 'Vendedor' },
-  { key: 'sellerRating', label: 'Valoración del vendedor', get: ad => ad.sellerRatingScore != null ? String(ad.sellerRatingScore).replace('.', ',') + ' ★' + (ad.sellerRatingCount ? ' (' + ad.sellerRatingCount + ')' : '') : null },
+  { key: 'sellerRating', label: 'Valoración del vendedor', get: ad => ad.sellerRatingScore != null ? String(ad.sellerRatingScore).replace('.', ',') + ' ★' + (ad.sellerRatingCount ? ' (' + ad.sellerRatingCount + ')' : '') : null, partKey: 'sellerRating' },
   { key: 'location', label: 'Ubicación' },
-  { key: 'transferHours', label: 'Trayecto en coche hasta Madrid', get: ad => (ad.locationTransfer && ad.locationTransfer.hours != null) ? fmtHours(ad.locationTransfer.hours) : null },
-  { key: 'transferCost', label: 'Coste del trayecto hasta Madrid', get: ad => (ad.locationTransfer && ad.locationTransfer.cost != null) ? fmtEUR.format(ad.locationTransfer.cost) : null },
-  { key: 'featuresCount', label: 'Nº de extras', get: ad => (ad.features ? ad.features.length : null) },
+  { key: 'transferHours', label: 'Trayecto en coche hasta Madrid', get: ad => (ad.locationTransfer && ad.locationTransfer.hours != null) ? fmtHours(ad.locationTransfer.hours) : null, partKey: 'transferHours' },
+  { key: 'transferCost', label: 'Coste del trayecto hasta Madrid', get: ad => (ad.locationTransfer && ad.locationTransfer.cost != null) ? fmtEUR.format(ad.locationTransfer.cost) : null, partKey: 'transferCost' },
+  { key: 'featuresCount', label: 'Nº de extras' },
   { key: 'capturedAt', label: 'Última captura' },
   { key: 'url', label: 'Enlace', get: ad => ad.url, isLink: true }
 ];
@@ -2853,6 +2898,7 @@ function renderFullCompare() {
     return;
   }
   const diffOnly = document.getElementById('fullCompareDiffOnly').checked;
+  const evals = ads.map(ad => ({ ad, ev: evaluateAd(ad, state.prefs) }));
 
   const header = '<tr><th class="param">Parámetro</th>' +
     ads.map(ad => '<th class="car-head">' +
@@ -2867,8 +2913,15 @@ function renderFullCompare() {
     const values = ads.map(ad => fullCompareValue(field, ad));
     const isDiff = new Set(values.map(v => v === null ? ' ' : v)).size > 1;
     if (diffOnly && !isDiff) return;
+    const statusCls = field.partKey ? evals.map(({ ev }) => {
+      const p = ev.parts.find(x => x.key === field.partKey);
+      return p ? p.status.cls : null;
+    }) : null;
     rowsHtml += '<tr' + (isDiff ? ' class="fc-diff-row"' : '') + '><th class="param">' + esc(field.label) + '</th>' +
-      values.map(v => '<td' + (isDiff ? ' class="fc-diff"' : '') + '>' + (v !== null ? esc(v) : '<span class="hint">—</span>') + '</td>').join('') +
+      values.map((v, i) => {
+        const cls = [isDiff ? 'fc-diff' : null, statusCls && statusCls[i] ? 'cell-' + statusCls[i] : null].filter(Boolean).join(' ');
+        return '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + (v !== null ? esc(v) : '<span class="hint">—</span>') + '</td>';
+      }).join('') +
       '</tr>';
   });
 
@@ -2878,7 +2931,7 @@ function renderFullCompare() {
     const values = ads.map(ad => (ad.features || []).some(x => x.toLowerCase() === f.toLowerCase()));
     const isDiff = new Set(values).size > 1;
     if (diffOnly && !isDiff) return;
-    featureRowsHtml += '<tr' + (isDiff ? ' class="fc-diff-row"' : '') + '><th class="param">' + esc(f) + '</th>' +
+    featureRowsHtml += '<tr' + (isDiff ? ' class="fc-diff-row"' : '') + '><th class="param">' + esc(translateFeature(f)) + '</th>' +
       values.map(v => '<td' + (isDiff ? ' class="fc-diff"' : '') + ' style="text-align:center">' + (v ? '✓' : '<span class="hint">—</span>') + '</td>').join('') +
       '</tr>';
   });
@@ -3566,7 +3619,7 @@ function renderPrefs() {
     ? feats.map(f => {
         const active = currentWishlist.includes(f.toLowerCase());
         return '<button type="button" class="feature-chip' + (active ? ' active' : '') + '" data-feature="' + esc(f) + '" onclick="toggleWishlistFeature(this)">' +
-          (active ? '✓ ' : '+ ') + esc(f) + '</button>';
+          (active ? '✓ ' : '+ ') + esc(translateFeature(f)) + '</button>';
       }).join('')
     : '<p class="hint">Todavía no hay equipamiento registrado en tus anuncios guardados.</p>';
 
