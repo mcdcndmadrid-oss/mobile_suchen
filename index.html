@@ -463,6 +463,9 @@
     background: var(--surface-3); color: var(--ink); cursor: pointer;
   }
   .feature-chip.active { background: var(--good-bg); color: var(--good-text); border-color: transparent; }
+
+  td.fc-diff { background: var(--warn-bg); }
+  tr.fc-diff-row th.param { color: var(--warn-text); font-weight: 700; }
   .car-card .score-block { text-align: right; }
   .car-card .specs {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; font-size: 12.5px;
@@ -563,6 +566,7 @@
         <button id="btnViewModels">Modelos oficiales</button>
         <button id="btnViewFinalCost">Coste final</button>
         <button id="btnViewRadar">Gráfico radar</button>
+        <button id="btnViewFullCompare">Comparativa completa</button>
       </div>
       <button id="btnTheme" title="Cambiar tema"></button>
       <button id="btnPrefs">Preferencias</button>
@@ -765,6 +769,20 @@
     <div id="radarBody"></div>
   </div>
 
+  <div id="fullCompareArea" hidden>
+    <section class="panel">
+      <div class="panel-header">
+        <p class="eyebrow">Comparativa completa (hasta 3 anuncios)</p>
+      </div>
+      <p class="hint">Selecciona hasta 3 anuncios guardados para ver absolutamente todos sus datos lado a lado, incluido cada elemento de equipamiento uno a uno.</p>
+      <div class="om-cat-models" id="fullCompareCheckGroups"></div>
+      <div class="row-actions">
+        <label><input type="checkbox" id="fullCompareDiffOnly" onchange="renderFullCompare()"> Mostrar solo las diferencias</label>
+      </div>
+    </section>
+    <div id="fullCompareBody"></div>
+  </div>
+
   <section class="panel" id="recPanel" hidden>
     <p class="eyebrow">Recomendaciones</p>
     <ul class="rec-list" id="recList"></ul>
@@ -905,7 +923,7 @@ function load() {
   s.prefs = mergePrefs(s.prefs);
   s.columns = Object.assign(defaultColumns(), s.columns || {});
   s.costConfig = Object.assign(defaultCostConfig(), s.costConfig || {});
-  s.view = ['table', 'map', 'search', 'models', 'finalcost', 'radar'].includes(s.view) ? s.view : 'cards';
+  s.view = ['table', 'map', 'search', 'models', 'finalcost', 'radar', 'fullcompare'].includes(s.view) ? s.view : 'cards';
   // Anuncios capturados antes de que existiera este campo: el título/highlights/categoría
   // ya estaban guardados, así que se puede detectar el paquete deportivo retroactivamente
   // sin tener que volver a capturarlos.
@@ -1845,6 +1863,7 @@ function render() {
   else if (state.view === 'models') renderOfficialModels();
   else if (state.view === 'finalcost') renderFinalCost();
   else if (state.view === 'radar') renderRadar();
+  else if (state.view === 'fullcompare') renderFullCompare();
   else if (state.view !== 'search') renderCards();
   renderRecs();
   renderPrefs();
@@ -1860,6 +1879,7 @@ function applyViewToggle() {
   document.getElementById('modelsArea').hidden = v !== 'models';
   document.getElementById('finalCostArea').hidden = v !== 'finalcost';
   document.getElementById('radarArea').hidden = v !== 'radar';
+  document.getElementById('fullCompareArea').hidden = v !== 'fullcompare';
   document.getElementById('btnViewCards').classList.toggle('active', v === 'cards');
   document.getElementById('btnViewTable').classList.toggle('active', v === 'table');
   document.getElementById('btnViewMap').classList.toggle('active', v === 'map');
@@ -1867,12 +1887,13 @@ function applyViewToggle() {
   document.getElementById('btnViewModels').classList.toggle('active', v === 'models');
   document.getElementById('btnViewFinalCost').classList.toggle('active', v === 'finalcost');
   document.getElementById('btnViewRadar').classList.toggle('active', v === 'radar');
+  document.getElementById('btnViewFullCompare').classList.toggle('active', v === 'fullcompare');
 
-  // "Búsqueda", "Modelos oficiales", "Coste final" y "Gráfico radar" son pestañas aparte:
-  // cuando alguna está activa, el resto de secciones del comparador detallado (criterios
-  // activos y recomendaciones) no aplican y se ocultan. La visibilidad del propio panel de
-  // búsqueda la gestiona renderSearchResults().
-  if (v === 'search' || v === 'models' || v === 'finalcost' || v === 'radar') {
+  // "Búsqueda", "Modelos oficiales", "Coste final", "Gráfico radar" y "Comparativa completa"
+  // son pestañas aparte: cuando alguna está activa, el resto de secciones del comparador
+  // detallado (criterios activos y recomendaciones) no aplican y se ocultan. La visibilidad
+  // del propio panel de búsqueda la gestiona renderSearchResults().
+  if (v === 'search' || v === 'models' || v === 'finalcost' || v === 'radar' || v === 'fullcompare') {
     document.getElementById('criteriaBar').hidden = true;
     document.getElementById('recPanel').hidden = true;
   }
@@ -2744,6 +2765,130 @@ function renderRadar() {
     '<div class="om-sizes-wrap"><div class="om-size-svg-wrap">' + radarRenderChart(evals, axes) + '</div><div class="om-size-legend">' + legend + '</div></div>' +
     '<p class="hint" style="margin-top:14px">Cada eje es un criterio de tus Preferencias con peso puesto: el borde exterior es "mejor en ese criterio", el centro "peor". Si a un anuncio no le aplica algún eje, se dibuja en el punto medio (neutro).</p>' +
     '</div>';
+}
+
+/* ---------- Comparativa completa (hasta 3 anuncios, todos los campos) ---------- */
+let fullCompareSelected = new Set();
+
+// Todo el dato "de ficha" del anuncio, no solo lo que ROW_DEFS muestra en la tabla
+// principal (esa es personalizable y algunos campos están ocultos a propósito). Esta vista
+// es la contraria: exhaustiva siempre, sin toggle de columnas.
+const FULL_COMPARE_FIELDS = [
+  { key: 'title', label: 'Título' },
+  { key: 'make', label: 'Marca' },
+  { key: 'model', label: 'Modelo' },
+  { key: 'category', label: 'Categoría' },
+  { key: 'sportPackage', label: 'Paquete deportivo' },
+  { key: 'priceGross', label: 'Precio', fmt: v => fmtEUR.format(v) },
+  { key: 'totalPrice', label: 'Precio total (con impuesto)', get: ad => totalPriceWithTax(ad), fmt: v => fmtEUR.format(v) },
+  { key: 'priceRatingLabel', label: 'Valoración de precio', get: ad => ad.priceRating ? ad.priceRating.label : null },
+  { key: 'firstRegistration', label: 'Matriculación' },
+  { key: 'mileageKm', label: 'Kilómetros', fmt: v => fmtInt.format(v) + ' km' },
+  { key: 'powerPs', label: 'Potencia', fmt: v => v + ' CV' },
+  { key: 'cubicCapacity', label: 'Cilindrada', fmt: v => v + ' cm³' },
+  { key: 'cylinder', label: 'Cilindros' },
+  { key: 'engineType', label: 'Tipo de motor' },
+  { key: 'fuel', label: 'Combustible' },
+  { key: 'transmission', label: 'Transmisión' },
+  { key: 'co2Emissions', label: 'Emisiones CO₂' },
+  { key: 'energyConsumption', label: 'Consumo' },
+  { key: 'emissionClass', label: 'Clase de emisiones' },
+  { key: 'emissionsSticker', label: 'Etiqueta ambiental' },
+  { key: 'owners', label: 'Propietarios' },
+  { key: 'damageCondition', label: 'Accidentes' },
+  { key: 'vehicleCondition', label: 'Condición del vehículo' },
+  { key: 'hu', label: 'HU (ITV)' },
+  { key: 'climatisation', label: 'Climatización' },
+  { key: 'color', label: 'Color', get: ad => (colorInfo(ad.color) ? colorInfo(ad.color).es : ad.color) },
+  { key: 'interior', label: 'Interior' },
+  { key: 'seats', label: 'Plazas' },
+  { key: 'sellerTypeLabel', label: 'Tipo de vendedor', get: ad => ad.sellerType === 'DEALER' ? 'Profesional' : ad.sellerType === 'FOR_SALE_BY_OWNER' ? 'Particular' : ad.sellerType },
+  { key: 'sellerName', label: 'Vendedor' },
+  { key: 'sellerRating', label: 'Valoración del vendedor', get: ad => ad.sellerRatingScore != null ? String(ad.sellerRatingScore).replace('.', ',') + ' ★' + (ad.sellerRatingCount ? ' (' + ad.sellerRatingCount + ')' : '') : null },
+  { key: 'location', label: 'Ubicación' },
+  { key: 'transferHours', label: 'Trayecto en coche hasta Madrid', get: ad => (ad.locationTransfer && ad.locationTransfer.hours != null) ? fmtHours(ad.locationTransfer.hours) : null },
+  { key: 'transferCost', label: 'Coste del trayecto hasta Madrid', get: ad => (ad.locationTransfer && ad.locationTransfer.cost != null) ? fmtEUR.format(ad.locationTransfer.cost) : null },
+  { key: 'featuresCount', label: 'Nº de extras', get: ad => (ad.features ? ad.features.length : null) },
+  { key: 'capturedAt', label: 'Última captura' },
+  { key: 'url', label: 'Enlace', get: ad => ad.url, isLink: true }
+];
+
+function fullCompareValue(field, ad) {
+  const raw = field.get ? field.get(ad) : ad[field.key];
+  if (raw === null || raw === undefined || raw === '') return null;
+  return field.fmt ? field.fmt(raw) : String(raw);
+}
+
+function fullCompareToggle(id, checked) {
+  if (checked) fullCompareSelected.add(id); else fullCompareSelected.delete(id);
+  renderFullCompare();
+}
+function fullCompareRenderChecks() {
+  document.getElementById('fullCompareCheckGroups').innerHTML = regularAds().map(ad => {
+    const sel = fullCompareSelected.has(String(ad.id));
+    const disabled = !sel && fullCompareSelected.size >= 3;
+    return '<label class="om-check">' +
+      '<input type="checkbox" ' + (sel ? 'checked' : '') + (disabled ? ' disabled' : '') +
+      ' onchange="fullCompareToggle(\'' + ad.id + '\', this.checked)">' +
+      '<span>' + esc(ad.title) + '</span>' +
+      '</label>';
+  }).join('');
+}
+
+// Unión de todo el equipamiento (ad.features) de los anuncios seleccionados, comparación
+// exacta insensible a mayúsculas (mobile.de usa el mismo texto literal para el mismo
+// elemento entre anuncios distintos, no hace falta fuzzy matching).
+function fullCompareFeatureUnion(ads) {
+  const set = new Set();
+  ads.forEach(ad => (ad.features || []).forEach(f => set.add(f)));
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+function renderFullCompare() {
+  fullCompareRenderChecks();
+  const body = document.getElementById('fullCompareBody');
+  const ads = regularAds().filter(ad => fullCompareSelected.has(String(ad.id)));
+  if (ads.length < 2) {
+    body.innerHTML = '<div class="panel"><p class="hint">Selecciona arriba entre 2 y 3 anuncios guardados para comparar todos sus datos.</p></div>';
+    return;
+  }
+  const diffOnly = document.getElementById('fullCompareDiffOnly').checked;
+
+  const header = '<tr><th class="param">Parámetro</th>' +
+    ads.map(ad => '<th class="car-head">' +
+      (ad.imageUrl ? '<img class="car-photo" src="' + esc(ad.imageUrl) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '') +
+      '<div class="car-title">' + esc(ad.title) +
+      (ad.url ? '<div><a class="adlink" href="' + esc(ad.url) + '" target="_blank" rel="noopener">Ver anuncio ↗</a></div>' : '') + '</div></th>').join('') +
+    '</tr>';
+
+  let rowsHtml = '';
+  FULL_COMPARE_FIELDS.forEach(field => {
+    if (field.isLink) return; // ya sale como enlace en la cabecera
+    const values = ads.map(ad => fullCompareValue(field, ad));
+    const isDiff = new Set(values.map(v => v === null ? ' ' : v)).size > 1;
+    if (diffOnly && !isDiff) return;
+    rowsHtml += '<tr' + (isDiff ? ' class="fc-diff-row"' : '') + '><th class="param">' + esc(field.label) + '</th>' +
+      values.map(v => '<td' + (isDiff ? ' class="fc-diff"' : '') + '>' + (v !== null ? esc(v) : '<span class="hint">—</span>') + '</td>').join('') +
+      '</tr>';
+  });
+
+  const allFeatures = fullCompareFeatureUnion(ads);
+  let featureRowsHtml = '';
+  allFeatures.forEach(f => {
+    const values = ads.map(ad => (ad.features || []).some(x => x.toLowerCase() === f.toLowerCase()));
+    const isDiff = new Set(values).size > 1;
+    if (diffOnly && !isDiff) return;
+    featureRowsHtml += '<tr' + (isDiff ? ' class="fc-diff-row"' : '') + '><th class="param">' + esc(f) + '</th>' +
+      values.map(v => '<td' + (isDiff ? ' class="fc-diff"' : '') + ' style="text-align:center">' + (v ? '✓' : '<span class="hint">—</span>') + '</td>').join('') +
+      '</tr>';
+  });
+  const featureSectionHtml = allFeatures.length
+    ? '<tr class="cat-row"><td colspan="' + (ads.length + 1) + '">Equipamiento (' + allFeatures.length + ' distintos entre los seleccionados)</td></tr>' + featureRowsHtml
+    : '';
+
+  body.innerHTML = '<div class="table-wrap"><table class="cmp"><thead>' + header + '</thead><tbody>' +
+    rowsHtml + featureSectionHtml +
+    '</tbody></table></div>';
 }
 
 function renderCriteriaChips() {
@@ -3634,6 +3779,9 @@ document.getElementById('btnViewFinalCost').addEventListener('click', () => {
 });
 document.getElementById('btnViewRadar').addEventListener('click', () => {
   state.view = 'radar'; save(); render();
+});
+document.getElementById('btnViewFullCompare').addEventListener('click', () => {
+  state.view = 'fullcompare'; save(); render();
 });
 
 /* ---------- theme (claro/oscuro) ---------- */
