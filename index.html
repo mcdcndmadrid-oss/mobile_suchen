@@ -1237,31 +1237,47 @@ function decodeEscapedSlice(raw, targetBytes) {
 
 // Cuando un campo es muy largo (típicamente la descripción del vendedor), Next.js (React
 // Server Components) no lo deja inline: dentro del JSON solo queda una referencia tipo
-// "$43" y el contenido real va aparte, en un "chunk" con forma "\n43:Tacd,<contenido>" (T +
+// "$43" y el contenido real va aparte, en un "chunk" con forma "...43:Tacd,<contenido>" (T +
 // longitud en hexadecimal de bytes). Esto resuelve esa referencia devolviendo el contenido
-// ya decodificado. El marcador "\nNN:" aparece en el texto capturado como los caracteres
-// literales backslash + "n" (no como un salto de línea real), así que hay que escapar la
-// barra invertida también dentro del propio patrón de la regex (\\\\n), no solo al
-// construir el string.
+// ya decodificado.
+// El marcador "NN:" que empieza un chunk puede venir precedido de formas distintas según
+// cómo se haya capturado el texto: dentro del mismo <script> los chunks se separan con los
+// caracteres literales backslash+"n" (no un salto de línea real); pero el bookmarklet junta
+// varios <script src="__next_f.push"> con un salto de línea REAL (sc.join('\n')) cuando
+// mobile.de reparte los datos en más de una etiqueta <script> (streaming), y puede que el
+// chunk buscado sea el primero de la suya. Por eso se prueban las dos formas, además de
+// aceptar que el chunk sea literalmente el principio del texto.
+function findChunkStart(text, ref) {
+  for (const marker of ['\\n' + ref + ':', '\n' + ref + ':']) {
+    const idx = text.indexOf(marker);
+    if (idx !== -1) return idx + marker.length;
+  }
+  if (text.slice(0, String(ref).length + 1) === ref + ':') return String(ref).length + 1;
+  return -1;
+}
 function resolveFlightChunk(text, ref) {
-  const defRe = new RegExp('\\\\n' + ref + ':(?:T([0-9a-fA-F]+),)?');
-  const m = defRe.exec(text);
-  if (!m) return null;
-  const start = m.index + m[0].length;
-  if (m[1]) {
-    const targetBytes = parseInt(m[1], 16);
+  const start = findChunkStart(text, ref);
+  if (start === -1) return null;
+  const tHexM = /^T([0-9a-fA-F]+),/.exec(text.slice(start, start + 20));
+  if (tHexM) {
+    const afterT = start + tHexM[0].length;
+    const targetBytes = parseInt(tHexM[1], 16);
     // Margen generoso: en el peor caso cada byte decodificado ocupa "\u00XX" (6 caracteres)
     // en el texto todavía escapado.
-    return decodeEscapedSlice(text.slice(start, start + targetBytes * 7 + 32), targetBytes);
+    return decodeEscapedSlice(text.slice(afterT, afterT + targetBytes * 7 + 32), targetBytes);
   }
   if (text[start] === '"') {
     const strM = /^"((?:[^"\\]|\\.)*)"/.exec(text.slice(start));
     if (strM) return unescapeJsonStr(strM[1]);
   }
-  const restRe = /\\n\d+:/g;
-  restRe.lastIndex = start;
-  const next = restRe.exec(text);
-  const end = next ? next.index : text.length;
+  // Chunk sin prefijo "T...": busca el siguiente marcador (en cualquiera de las dos formas)
+  // para saber dónde corta.
+  let end = text.length;
+  for (const markerRe of [/\\n\d+:/, /\n\d+:/]) {
+    const rest = text.slice(start);
+    const nm = markerRe.exec(rest);
+    if (nm) end = Math.min(end, start + nm.index);
+  }
   return unescapeJsonStr(text.slice(start, end));
 }
 
@@ -1486,6 +1502,20 @@ function regYear(ad) {
   if (!ad.firstRegistration) return null;
   const m = ad.firstRegistration.match(/(\d{4})/);
   return m ? parseInt(m[1], 10) : null;
+}
+
+// Antigüedad del propio coche en meses desde su matriculación ("firstRegistration",
+// formato "MM/AAAA" o solo "AAAA") hasta hoy. Distinto de adAgeDays(), que es la
+// antigüedad del ANUNCIO (cuándo se publicó/renovó en mobile.de).
+function ageMonths(ad) {
+  if (!ad.firstRegistration) return null;
+  const m = ad.firstRegistration.match(/(?:(\d{1,2})\/)?(\d{4})/);
+  if (!m) return null;
+  const month = m[1] ? parseInt(m[1], 10) - 1 : 0;
+  const year = parseInt(m[2], 10);
+  const reg = new Date(year, month, 1);
+  const now = new Date();
+  return Math.max(0, (now.getFullYear() - reg.getFullYear()) * 12 + (now.getMonth() - reg.getMonth()));
 }
 
 // Estimación de tiempo puerta a puerta desde Madrid (avión + coche), a partir del país/código
@@ -2951,6 +2981,96 @@ function fullCompareFeatureUnion(ads) {
 // de verdad no tiene fila en la tabla normal (plazas, equipamiento uno a uno, descripción
 // completa del vendedor al final), y cada fila marca si hay diferencia entre los
 // seleccionados (fc-diff), independientemente de si también tiene color de criterio.
+// Radar de "Comparativa completa": a diferencia del "Gráfico radar" (que usa las
+// Preferencias del usuario y valores normalizados 0-1 donde 1 siempre es "mejor"), este usa
+// valores ABSOLUTOS reales de cada coche. Cada eje tiene una escala FIJA (no calculada a
+// partir de los anuncios, para que la posición de un coche no cambie según con qué se le
+// compare y el resultado no dependa de cuán apretado sea el rango del grupo seleccionado).
+// "inverse" = el valor más bajo se dibuja más hacia fuera (porque para precio/km/antigüedad,
+// menos es mejor); el resto se dibuja tal cual, sin invertir.
+const FC_RADAR_FIELDS = [
+  { key: 'price', label: 'Precio', inverse: true, min: 30000, max: 40000, get: ad => totalPriceWithTax(ad), fmt: v => v != null ? fmtEUR.format(v) : '—' },
+  { key: 'km', label: 'Km', inverse: true, min: 0, max: 40000, get: ad => ad.mileageKm, fmt: v => v != null ? fmtInt.format(v) + ' km' : '—' },
+  { key: 'age', label: 'Antigüedad (meses)', inverse: true, min: 0, max: 24, get: ad => ageMonths(ad), fmt: v => v != null ? v + ' m' : '—' },
+  { key: 'rating', label: 'Valoración vendedor', inverse: false, min: 4.0, max: 5.0, get: ad => ad.sellerRatingScore, fmt: v => v != null ? v.toFixed(1) + '★' : '—' },
+  { key: 'distance', label: 'Distancia a Madrid', inverse: false, min: 16, max: 24, get: ad => (ad.locationTransfer && !ad.locationTransfer.loading) ? ad.locationTransfer.hours : null, fmt: v => v != null ? fmtHours(v) : '—' },
+  { key: 'equipment', label: 'Equipamiento', inverse: false, min: 0, max: null, get: ad => (ad.features || []).length, fmt: v => v != null ? v + ' ítems' : '—' }
+];
+
+function fcRadarRenderChart(ads) {
+  const size = 480, center = size / 2, maxR = size / 2 - 78;
+  const angleFor = i => (Math.PI * 2 * i / FC_RADAR_FIELDS.length) - Math.PI / 2;
+
+  // Escalas fijas (definidas arriba en FC_RADAR_FIELDS); la única que no tiene un máximo de
+  // antemano es "Equipamiento", que usa el total de líneas de equipamiento distintas que
+  // existen entre todos los anuncios guardados.
+  const totalFeatureLines = distinctFeatures().length;
+  const ranges = FC_RADAR_FIELDS.map(f => ({ min: f.min, max: f.max != null ? f.max : Math.max(totalFeatureLines, 1) }));
+  const fracFor = (f, range, v) => {
+    if (v === null || v === undefined || isNaN(v)) return null;
+    const raw = (v - range.min) / (range.max - range.min);
+    const clamped = Math.max(0, Math.min(1, raw));
+    return f.inverse ? 1 - clamped : clamped;
+  };
+
+  let axesSvg = '';
+  FC_RADAR_FIELDS.forEach((f, i) => {
+    const a = angleFor(i);
+    const x = center + maxR * Math.cos(a), y = center + maxR * Math.sin(a);
+    axesSvg += '<line x1="' + center + '" y1="' + center + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="var(--line)" stroke-width="1"></line>';
+    const lx = center + (maxR + 24) * Math.cos(a), ly = center + (maxR + 24) * Math.sin(a);
+    const anchor = Math.cos(a) > 0.3 ? 'start' : (Math.cos(a) < -0.3 ? 'end' : 'middle');
+    const range = ranges[i];
+    const rangeLabel = f.fmt(range.min) + ' – ' + f.fmt(range.max);
+    axesSvg += '<text x="' + lx.toFixed(1) + '" y="' + (ly - 6).toFixed(1) + '" font-size="11" fill="var(--ink-soft)" text-anchor="' + anchor + '" dominant-baseline="middle">' + esc(f.label) + (f.inverse ? ' ↓' : '') + '</text>';
+    axesSvg += '<text x="' + lx.toFixed(1) + '" y="' + (ly + 9).toFixed(1) + '" font-size="9.5" fill="var(--ink-soft)" text-anchor="' + anchor + '" dominant-baseline="middle">' + esc(rangeLabel) + '</text>';
+  });
+
+  let ringsSvg = '';
+  [0.25, 0.5, 0.75, 1].forEach(r => {
+    const pts = FC_RADAR_FIELDS.map((_, i) => {
+      const a = angleFor(i);
+      return (center + maxR * r * Math.cos(a)).toFixed(1) + ',' + (center + maxR * r * Math.sin(a)).toFixed(1);
+    }).join(' ');
+    ringsSvg += '<polygon points="' + pts + '" fill="none" stroke="var(--line)" stroke-width="1" stroke-dasharray="' + (r === 1 ? '0' : '3 3') + '"></polygon>';
+  });
+
+  let polysSvg = '';
+  ads.forEach((ad, idx) => {
+    const color = OM_PALETTE[idx % OM_PALETTE.length];
+    const pts = FC_RADAR_FIELDS.map((f, i) => {
+      const frac = fracFor(f, ranges[i], f.get(ad));
+      const rr = frac === null ? 0 : frac;
+      const a = angleFor(i);
+      return (center + maxR * rr * Math.cos(a)).toFixed(1) + ',' + (center + maxR * rr * Math.sin(a)).toFixed(1);
+    }).join(' ');
+    polysSvg += '<polygon points="' + pts + '" fill="' + color + '" fill-opacity="0.18" stroke="' + color + '" stroke-width="2.5"></polygon>';
+  });
+
+  const svg = '<svg width="100%" viewBox="0 0 ' + size + ' ' + size + '" style="max-width:560px">' + ringsSvg + axesSvg + polysSvg + '</svg>';
+
+  // Tabla con las cifras absolutas reales debajo del gráfico, para leerlas exactas sin
+  // tener que estimarlas a ojo sobre el radar.
+  let table = '<table class="cmp fc-radar-table"><tr><th class="param">Criterio</th>' +
+    ads.map((ad, i) => '<th style="color:' + OM_PALETTE[i % OM_PALETTE.length] + '">' + esc(ad.title) + '</th>').join('') + '</tr>';
+  FC_RADAR_FIELDS.forEach(f => {
+    table += '<tr><th class="param">' + esc(f.label) + (f.inverse ? ' <span class="hint">(menos es mejor)</span>' : '') + '</th>' +
+      ads.map(ad => '<td>' + esc(f.fmt(f.get(ad))) + '</td>').join('') + '</tr>';
+  });
+  table += '</table>';
+
+  const legend = ads.map((ad, i) =>
+    '<div class="om-legend-item"><span class="om-legend-swatch" style="background:' + OM_PALETTE[i % OM_PALETTE.length] + '"></span>' + esc(ad.title) + '</div>'
+  ).join('');
+
+  return '<section class="panel" style="margin-top:16px">' +
+    '<div class="panel-header"><p class="eyebrow">Radar de valores absolutos</p></div>' +
+    '<p class="hint">Cada eje tiene una escala fija (el centro no tiene por qué ser 0; un valor fuera de rango se queda pegado al extremo): en precio, km y antigüedad, más hacia fuera es menos (↓ = mejor); valoración, distancia y equipamiento se muestran tal cual.</p>' +
+    '<div class="om-sizes-wrap"><div class="om-size-svg-wrap">' + svg + '</div><div class="om-size-legend">' + legend + '</div></div>' +
+    '<div class="table-wrap" style="margin-top:14px">' + table + '</div>' +
+    '</section>';
+}
+
 function renderFullCompare() {
   const body = document.getElementById('fullCompareBody');
   const selectedAds = regularAds().filter(ad => fullCompareSelected.has(String(ad.id)));
@@ -2960,6 +3080,9 @@ function renderFullCompare() {
   }
   const diffOnly = document.getElementById('fullCompareDiffOnly').checked;
 
+  // El radar de valores absolutos escala cada eje con TODOS los anuncios guardados, no solo
+  // los seleccionados aquí, así que hace falta el trayecto real también del resto.
+  regularAds().forEach(ensureLocationTransfer);
   const rows = selectedAds.map(ad => ({ ad, ev: evaluateAd(ad, state.prefs) }))
     .sort((a, b) => (b.ev.score ?? -1) - (a.ev.score ?? -1));
   const partOf = (ev, key) => ev.parts.find(p => p.key === key);
@@ -3042,7 +3165,7 @@ function renderFullCompare() {
   bodyRows += '<tr class="cat-row"><td colspan="' + (rows.length + 1) + '">Descripción del vendedor</td></tr>';
   bodyRows += '<tr><th class="param">Descripción completa</th>' + descCells.map(v => '<td>' + v + '</td>').join('') + '</tr>';
 
-  body.innerHTML = '<div class="table-wrap">' + h + bodyRows + '</table></div>';
+  body.innerHTML = '<div class="table-wrap">' + h + bodyRows + '</table></div>' + fcRadarRenderChart(rows.map(r => r.ad));
 }
 
 function renderCriteriaChips() {
